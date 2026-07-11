@@ -17,7 +17,7 @@ interface ObjectiveForm {
   locationDescription: string;
   taskDescription: string;
   points: number;
-  imageUrlsText: string;
+  imageFiles: File[];
 }
 
 interface GameForm {
@@ -50,6 +50,8 @@ export class HostComponent implements OnInit {
   notice = '';
   showSessionQrCodes = false;
   activeView: HostView = 'menu';
+
+  readonly maxObjectiveImages = 3;
 
   private readonly passwordKey = 'citygame-host-password';
 
@@ -169,7 +171,7 @@ export class HostComponent implements OnInit {
         locationDescription: objective.locationDescription.trim(),
         taskDescription: objective.taskDescription.trim(),
         points: Number(objective.points),
-        imageUrls: this.parseUrls(objective.imageUrlsText)
+        imageFiles: objective.imageFiles
       }))
     };
 
@@ -375,6 +377,46 @@ export class HostComponent implements OnInit {
     this.showSessionQrCodes = !this.showSessionQrCodes;
   }
 
+  onObjectiveImagesSelected(index: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const objective = this.newGame.objectives[index];
+    const files = Array.from(input.files || []);
+
+    if (!objective) {
+      input.value = '';
+      return;
+    }
+
+    if (files.length === 0) {
+      return;
+    }
+
+    const remainingSlots = this.maxObjectiveImages - objective.imageFiles.length;
+
+    if (remainingSlots <= 0) {
+      this.error = `Each objective can have up to ${this.maxObjectiveImages} images.`;
+      input.value = '';
+      return;
+    }
+
+    objective.imageFiles = [
+      ...objective.imageFiles,
+      ...files.slice(0, remainingSlots)
+    ];
+
+    if (files.length > remainingSlots) {
+      this.error = `Each objective can have up to ${this.maxObjectiveImages} images.`;
+    } else {
+      this.error = '';
+    }
+
+    input.value = '';
+  }
+
+  removeObjectiveImage(objectiveIndex: number, imageIndex: number): void {
+    this.newGame.objectives[objectiveIndex].imageFiles.splice(imageIndex, 1);
+  }
+
   formatTime(totalSeconds: number): string {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
@@ -388,13 +430,6 @@ export class HostComponent implements OnInit {
       },
       error: (error) => this.handleError(error, 'Could not refresh sessions.')
     });
-  }
-
-  private parseUrls(text: string): string[] {
-    return text
-      .split(/[\n,]/)
-      .map((url) => url.trim())
-      .filter(Boolean);
   }
 
   private emptyGame(): GameForm {
@@ -411,7 +446,7 @@ export class HostComponent implements OnInit {
       locationDescription: '',
       taskDescription: '',
       points: 20,
-      imageUrlsText: ''
+      imageFiles: []
     };
   }
 

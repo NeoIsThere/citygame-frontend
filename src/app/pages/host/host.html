@@ -447,15 +447,34 @@
                       />
                     </label>
 
-                    <label>
-                      Image URLs
-                      <textarea
+                    <div class="file-field">
+                      <label for="images-{{ index }}">Reference images</label>
+                      <input
+                        id="images-{{ index }}"
                         name="images-{{ index }}"
-                        rows="3"
-                        [(ngModel)]="objective.imageUrlsText"
-                        placeholder="One URL per line"
-                      ></textarea>
-                    </label>
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        (change)="onObjectiveImagesSelected(index, $event)"
+                        [disabled]="objective.imageFiles.length >= maxObjectiveImages"
+                      />
+
+                      @if (objective.imageFiles.length > 0) {
+                        <div class="selected-file-list">
+                          @for (file of objective.imageFiles; track $index; let imageIndex = $index) {
+                            <button
+                              class="selected-file"
+                              type="button"
+                              (click)="removeObjectiveImage(index, imageIndex)"
+                              title="Remove image"
+                            >
+                              <span>{{ file.name }}</span>
+                              <small>{{ (file.size / 1024 / 1024).toFixed(1) }} MB</small>
+                            </button>
+                          }
+                        </div>
+                      }
+                    </div>
                   </div>
                 </article>
               }

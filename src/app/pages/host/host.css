@@ -204,6 +204,10 @@ textarea {
   font-weight: 700;
 }
 
+input[type='file'] {
+  background: #ffffff;
+}
+
 textarea {
   resize: vertical;
 }
@@ -258,6 +262,33 @@ button:disabled {
   border-radius: 8px;
   padding: 0.85rem;
   background: #f8fbff;
+}
+
+.file-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.selected-file-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.selected-file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2.6rem;
+  background: #dff6f1;
+  box-shadow: none;
+  text-align: left;
+}
+
+.selected-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notice-text,

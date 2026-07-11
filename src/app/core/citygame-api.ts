@@ -152,7 +152,7 @@ export interface CreateGamePayload {
     locationDescription: string;
     taskDescription: string;
     points: number;
-    imageUrls: string[];
+    imageFiles: File[];
   }>;
 }
 
@@ -198,7 +198,27 @@ export class CitygameApi {
   }
 
   createGame(password: string, payload: CreateGamePayload): Observable<{ id: number }> {
-    return this.http.post<{ id: number }>(`${this.baseUrl}/host/games`, payload, {
+    const formData = new FormData();
+    const game = {
+      name: payload.name,
+      durationMinutes: payload.durationMinutes,
+      objectives: payload.objectives.map((objective) => ({
+        title: objective.title,
+        locationDescription: objective.locationDescription,
+        taskDescription: objective.taskDescription,
+        points: objective.points
+      }))
+    };
+
+    formData.set('game', JSON.stringify(game));
+
+    payload.objectives.forEach((objective, objectiveIndex) => {
+      objective.imageFiles.forEach((file) => {
+        formData.append(`objectiveImages[${objectiveIndex}]`, file);
+      });
+    });
+
+    return this.http.post<{ id: number }>(`${this.baseUrl}/host/games`, formData, {
       headers: this.hostHeaders(password)
     });
   }
