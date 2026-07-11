@@ -1,0 +1,229 @@
+<main class="player-shell">
+  <a class="brand-link" routerLink="/">Race the City</a>
+
+  @if (loading) {
+    <section class="center-panel">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading session...</p>
+    </section>
+  } @else if (error && !state) {
+    <section class="center-panel">
+      <h1>Session unavailable</h1>
+      <p>{{ error }}</p>
+    </section>
+  } @else if (state && isGameOver) {
+    <section class="winner-page">
+      <div class="winner-hero">
+        <p class="session-kicker">{{ state.game.name }}</p>
+        <h1>{{ winnerTitle }}</h1>
+        <p class="winner-name">{{ winnerNames }}</p>
+        <div class="winner-score">{{ winnerScore }} pts</div>
+        <p class="winner-copy">{{ state.session.name }} is complete.</p>
+      </div>
+
+      <section class="podium-panel">
+        <h2>Final leaderboard</h2>
+        @if (rankedTeams.length === 0) {
+          <div class="empty-state">No teams joined this race.</div>
+        } @else {
+          <div class="final-leaderboard">
+            @for (team of rankedTeams; track team.id; let index = $index) {
+              <div
+                class="final-row"
+                [class.champion]="team.score === winnerScore"
+                [class.current]="team.id === currentTeamId"
+              >
+                <span class="rank">{{ index + 1 }}</span>
+                <span class="leader-name">{{ team.name }}</span>
+                <strong>{{ team.score }} pts</strong>
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      @if (hasJoined && completedObjectives.length > 0) {
+        <details class="completed-list winner-completed">
+          <summary>Your completed objectives</summary>
+          @for (objective of completedObjectives; track objective.id) {
+            <div class="completed-row">{{ objective.title }} <span>{{ objective.points }} pts</span></div>
+          }
+        </details>
+      }
+    </section>
+  } @else if (state && !hasJoined) {
+    <section class="join-panel">
+      <div class="session-kicker">{{ state.game.name }}</div>
+      <h1>Join the chase</h1>
+      <p class="session-name">{{ state.session.name }}</p>
+
+      @if (error) {
+        <p class="error-text">{{ error }}</p>
+      }
+
+      <form class="new-team-form" (ngSubmit)="createTeam()">
+        <label for="team-name">New team name</label>
+        <div class="inline-control">
+          <input
+            id="team-name"
+            name="teamName"
+            type="text"
+            maxlength="90"
+            [(ngModel)]="newTeamName"
+            placeholder="The Fountain Finders"
+          />
+          <button type="submit" [disabled]="joining">+ Join</button>
+        </div>
+      </form>
+
+      <div class="existing-teams">
+        <h2>Already joined</h2>
+        @if (state.teams.length === 0) {
+          <p class="muted">No teams yet.</p>
+        } @else {
+          <div class="team-pick-list">
+            @for (team of state.teams; track team.id) {
+              <button type="button" (click)="joinExisting(team)">
+                <span>{{ team.name }}</span>
+                <strong>{{ team.score }} pts</strong>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  } @else if (state) {
+    <section class="session-dashboard">
+      <div class="session-header">
+        <div>
+          <p class="session-kicker">{{ state.game.name }}</p>
+          <h1>{{ state.session.name }}</h1>
+          <p class="team-name">Team: {{ state.joinedTeam?.name }}</p>
+        </div>
+        <span class="status-pill">{{ statusText() }}</span>
+      </div>
+
+      @if (canChangeTeam) {
+        <button class="ghost-button" type="button" (click)="changeTeam()">Change team</button>
+      }
+
+      @if (error) {
+        <p class="error-text">{{ error }}</p>
+      }
+
+      <div class="timer-panel">
+        <span>Time left</span>
+        <strong>{{ timerText() }}</strong>
+      </div>
+
+      <section class="leaderboard-section">
+        <h2>Leaderboard</h2>
+        <div class="leaderboard">
+          @for (team of state.teams; track team.id; let index = $index) {
+            <div class="leader-row" [class.current]="team.id === currentTeamId">
+              <span class="rank">{{ index + 1 }}</span>
+              <span class="leader-name">{{ team.name }}</span>
+              <strong>{{ team.score }} pts</strong>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="objectives-section">
+        <div class="section-title-row">
+          <h2>Objectives</h2>
+          @if (completedObjectives.length > 0) {
+            <span>{{ completedObjectives.length }} done</span>
+          }
+        </div>
+
+        @if (state.session.status === 'waiting') {
+          <div class="empty-state">Objectives unlock when the host starts the game.</div>
+        } @else if (activeObjectives.length === 0) {
+          <div class="empty-state">No active objectives left.</div>
+        } @else {
+          <div class="objective-list">
+            @for (objective of activeObjectives; track objective.id) {
+              <article class="objective-card">
+                @if (objective.imageUrls.length > 0) {
+                  <img [src]="objective.imageUrls[0]" alt="" />
+                }
+                <div class="objective-copy">
+                  <div class="objective-topline">
+                    <h3>{{ objective.title }}</h3>
+                    <span>{{ objective.points }} pts</span>
+                  </div>
+                  <p class="location">{{ objective.locationDescription }}</p>
+                  <p>{{ objective.taskDescription }}</p>
+
+                  @if (objective.pendingSubmission) {
+                    <div class="proof-status pending">
+                      <strong>Sent to host</strong>
+                      <span>Waiting for review.</span>
+                    </div>
+                    <div class="proof-preview-grid">
+                      @for (image of objective.pendingSubmission.images; track image.id) {
+                        <img
+                          [src]="image.urls[300]"
+                          [srcset]="image.urls[300] + ' 300w, ' + image.urls[600] + ' 600w'"
+                          sizes="33vw"
+                          alt="Submitted proof image"
+                        />
+                      }
+                    </div>
+                  } @else {
+                    <form class="proof-form" (ngSubmit)="submitProof(objective.id)">
+                      <label class="file-picker">
+                        Proof photos
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          multiple
+                          (change)="onProofFiles(objective.id, $event)"
+                        />
+                      </label>
+
+                      @if (proofFileNames(objective.id)) {
+                        <p class="file-summary">{{ proofFileNames(objective.id) }}</p>
+                      } @else {
+                        <p class="file-summary">Choose up to 3 photos.</p>
+                      }
+
+                      <button
+                        type="submit"
+                        [disabled]="uploadingObjectiveId === objective.id || !selectedProofFiles[objective.id]?.length"
+                      >
+                        {{ uploadingObjectiveId === objective.id ? 'Sending...' : 'Send proof' }}
+                      </button>
+                    </form>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        }
+
+        @if (completedObjectives.length > 0) {
+          <details class="completed-list">
+            <summary>Completed objectives</summary>
+            @for (objective of completedObjectives; track objective.id) {
+              <div class="completed-row">{{ objective.title }} <span>{{ objective.points }} pts</span></div>
+              @if (objective.approvedSubmission?.images?.length) {
+                <div class="proof-preview-grid completed-proof">
+                  @for (image of objective.approvedSubmission?.images; track image.id) {
+                    <img
+                      [src]="image.urls[300]"
+                      [srcset]="image.urls[300] + ' 300w, ' + image.urls[600] + ' 600w'"
+                      sizes="33vw"
+                      alt="Approved proof image"
+                    />
+                  }
+                </div>
+              }
+            }
+          </details>
+        }
+      </section>
+    </section>
+  }
+</main>

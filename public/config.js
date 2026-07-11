@@ -1,0 +1,1 @@
+window.RACE_THE_CITY_API_URL = window.RACE_THE_CITY_API_URL || '';

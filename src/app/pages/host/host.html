@@ -1,0 +1,508 @@
+<main class="host-shell">
+  @if (!isAuthenticated) {
+    <section class="login-panel">
+      <p class="eyebrow">Host access</p>
+      <h1>Unlock the console</h1>
+      <form (ngSubmit)="login()">
+        <label for="host-password">Password</label>
+        <input
+          id="host-password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          [(ngModel)]="password"
+        />
+        <button type="submit" [disabled]="loading">
+          {{ loading ? 'Checking...' : '-> Enter' }}
+        </button>
+      </form>
+      @if (error) {
+        <p class="error-text">{{ error }}</p>
+      }
+    </section>
+  } @else {
+    <header class="host-header">
+      <div>
+        <p class="eyebrow">Race the City host</p>
+        <h1>Run the city game</h1>
+      </div>
+      <button class="plain-button" type="button" (click)="logout()">Log out</button>
+    </header>
+
+    @if (notice) {
+      <p class="notice-text">{{ notice }}</p>
+    }
+
+    @if (error) {
+      <p class="error-text">{{ error }}</p>
+    }
+
+    @if (activeView === 'menu') {
+      <section class="host-menu">
+        <button class="menu-card" type="button" (click)="openGameEditor()">
+          <span>Create a new game</span>
+          <small>Build objectives and points.</small>
+        </button>
+
+        <button class="menu-card accent" type="button" (click)="openSessionStarter()">
+          <span>Start a session</span>
+          <small>Pick a game and make a QR.</small>
+        </button>
+      </section>
+
+      <section class="tool-panel session-overview">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Ongoing sessions</p>
+            <h2>Live rooms</h2>
+          </div>
+          <div class="header-actions">
+            <button
+              class="plain-button"
+              type="button"
+              (click)="toggleSessionQrCodes()"
+              [disabled]="sessions.length === 0"
+            >
+              {{ showSessionQrCodes ? 'Hide QRs' : 'Show QRs' }}
+            </button>
+            <button class="icon-button" type="button" (click)="loadDashboard()" title="Refresh">R</button>
+          </div>
+        </div>
+
+        @if (loading && sessions.length === 0) {
+          <p class="muted">Loading...</p>
+        } @else if (sessions.length === 0) {
+          <p class="muted">No sessions yet.</p>
+        } @else {
+          <div class="session-list">
+            @for (session of sessions; track session.id) {
+              <button
+                type="button"
+                [class.selected]="selected?.session?.id === session.id"
+                (click)="selectSession(session.id)"
+              >
+                <span>
+                  <strong>{{ session.name }}</strong>
+                  <small>{{ session.gameName }}</small>
+                </span>
+                <span class="session-meta">
+                  {{ session.status }} - {{ session.teamCount }} teams
+                  @if (session.pendingSubmissionCount > 0) {
+                    - {{ session.pendingSubmissionCount }} reviews
+                  }
+                </span>
+              </button>
+            }
+          </div>
+
+          @if (showSessionQrCodes) {
+            <div class="qr-wall">
+              @for (session of sessions; track session.id) {
+                <article class="qr-card">
+                  <img [src]="qrUrl(session.id)" alt="QR code for {{ session.name }}" />
+                  <div>
+                    <strong>{{ session.name }}</strong>
+                    <span>{{ session.gameName }}</span>
+                  </div>
+                  <a [href]="session.joinUrl" target="_blank" rel="noreferrer">Open link</a>
+                </article>
+              }
+            </div>
+          }
+        }
+      </section>
+
+      <section class="tool-panel game-library">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Existing games</p>
+            <h2>Game library</h2>
+          </div>
+        </div>
+
+        @if (loading && games.length === 0) {
+          <p class="muted">Loading...</p>
+        } @else if (games.length === 0) {
+          <p class="muted">No games yet.</p>
+        } @else {
+          <div class="game-list">
+            @for (game of games; track game.id) {
+              <button type="button" (click)="selectGame(game.id)">
+                <span>
+                  <strong>{{ game.name }}</strong>
+                  <small>{{ game.objectiveCount }} objectives</small>
+                </span>
+                <span class="session-meta">{{ game.durationMinutes }} min</span>
+              </button>
+            }
+          </div>
+        }
+      </section>
+    } @else if (activeView === 'sessionDetail' && selected) {
+      <section class="view-page session-page">
+        <div class="view-heading">
+          <button class="back-button" type="button" (click)="backToMenu()" title="Back">&larr;</button>
+          <div>
+            <p class="eyebrow">{{ selected.game.name }}</p>
+            <h2>{{ selected.session.name }}</h2>
+          </div>
+        </div>
+
+        <section class="session-detail">
+          <div class="detail-heading">
+            <div>
+              <p class="eyebrow">Session</p>
+              <h3>{{ selected.session.status }}</h3>
+              <p class="muted">
+                {{ formatTime(selected.session.remainingSeconds) }} left
+              </p>
+            </div>
+
+            <div class="qr-box">
+              <img [src]="qrUrl(selected.session.id)" alt="QR code for player session" />
+              <a [href]="selected.session.joinUrl" target="_blank" rel="noreferrer">Open link</a>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button type="button" (click)="runAction('start')" [disabled]="saving || selected.session.status !== 'waiting'">
+              Start
+            </button>
+            <button type="button" (click)="runAction('pause')" [disabled]="saving || selected.session.status !== 'running'">
+              Pause
+            </button>
+            <button
+              type="button"
+              (click)="runAction('resume')"
+              [disabled]="saving || (selected.session.status !== 'paused' && selected.session.status !== 'stopped')"
+            >
+              Resume
+            </button>
+            <button class="danger-button" type="button" (click)="runAction('restart')" [disabled]="saving">
+              Restart
+            </button>
+            <button
+              class="danger-button"
+              type="button"
+              (click)="deleteSelectedSession()"
+              [disabled]="saving || selected.session.status !== 'paused'"
+            >
+              Delete
+            </button>
+          </div>
+
+          <div class="detail-grid">
+            <section class="tool-panel">
+              <p class="eyebrow">Leaderboard</p>
+              <h3>Scores</h3>
+
+              @if (selected.teams.length === 0) {
+                <p class="muted">Teams will appear as players join.</p>
+              } @else {
+                <div class="score-list">
+                  @for (team of selected.teams; track team.id) {
+                    <div class="score-row">
+                      <span>{{ team.name }}</span>
+                      <input
+                        name="score-{{ team.id }}"
+                        type="number"
+                        [(ngModel)]="team.score"
+                        (change)="saveScore(team)"
+                        (keyup.enter)="saveScore(team)"
+                        [disabled]="saving"
+                        aria-label="Score for {{ team.name }}"
+                      />
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+
+            <section class="tool-panel objective-validation">
+              <p class="eyebrow">Review queue</p>
+              <h3>Proof photos</h3>
+
+              @if (selected.pendingSubmissions.length === 0) {
+                <p class="muted">No photos waiting for review.</p>
+              } @else {
+                <div class="submission-list">
+                  @for (submission of selected.pendingSubmissions; track submission.id) {
+                    <article class="submission-card">
+                      <div class="objective-heading">
+                        <div>
+                          <h4>{{ submission.objective.title }}</h4>
+                          <p>{{ submission.team.name }}</p>
+                        </div>
+                        <strong>{{ submission.objective.points }} pts</strong>
+                      </div>
+
+                      <p class="task-text">{{ submission.objective.taskDescription }}</p>
+
+                      <div class="review-image-grid">
+                        @for (image of submission.images; track image.id) {
+                          <a [href]="image.urls[1200]" target="_blank" rel="noreferrer">
+                            <img
+                              [src]="image.urls[300]"
+                              [srcset]="image.urls[300] + ' 300w, ' + image.urls[600] + ' 600w'"
+                              sizes="33vw"
+                              alt="Submitted proof image"
+                            />
+                          </a>
+                        }
+                      </div>
+
+                      <div class="review-actions">
+                        <button type="button" (click)="reviewSubmission(submission, true)" [disabled]="saving">
+                          Approve
+                        </button>
+                        <button
+                          class="danger-button"
+                          type="button"
+                          (click)="reviewSubmission(submission, false)"
+                          [disabled]="saving"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </article>
+                  }
+                </div>
+              }
+            </section>
+
+            <section class="tool-panel objective-validation">
+              <p class="eyebrow">Objective map</p>
+              <h3>Team progress</h3>
+
+              @for (objective of selected.objectives; track objective.id) {
+                <article class="host-objective">
+                  <div class="objective-heading">
+                    <div>
+                      <h4>{{ objective.title }}</h4>
+                      <p>{{ objective.locationDescription }}</p>
+                    </div>
+                    <strong>{{ objective.points }} pts</strong>
+                  </div>
+
+                  <p class="task-text">{{ objective.taskDescription }}</p>
+
+                  @if (objective.imageUrls.length > 0) {
+                    <div class="thumb-strip">
+                      @for (imageUrl of objective.imageUrls; track imageUrl) {
+                        <img [src]="imageUrl" alt="" />
+                      }
+                    </div>
+                  }
+
+                  <div class="team-toggle-grid">
+                    @for (teamState of objective.teamStates; track teamState.teamId) {
+                      <div class="team-toggle" [class.locked]="!teamState.status">
+                        <span>{{ teamState.teamName }}</span>
+                        <small>{{ teamState.status || 'not assigned' }}</small>
+                      </div>
+                    }
+                  </div>
+                </article>
+              }
+            </section>
+          </div>
+        </section>
+      </section>
+    } @else if (activeView === 'gameDetail' && selectedGame) {
+      <section class="view-page">
+        <div class="view-heading split-heading">
+          <div class="view-title">
+            <button class="back-button" type="button" (click)="backToMenu()" title="Back">&larr;</button>
+            <div>
+              <p class="eyebrow">Game</p>
+              <h2>{{ selectedGame.name }}</h2>
+            </div>
+          </div>
+
+          <button class="danger-button" type="button" (click)="deleteSelectedGame()" [disabled]="saving">
+            Delete game
+          </button>
+        </div>
+
+        <section class="tool-panel game-detail-panel">
+          <div class="game-stats">
+            <span>{{ selectedGame.durationMinutes }} min</span>
+            <span>{{ selectedGame.objectiveCount }} objectives</span>
+          </div>
+
+          <div class="objective-validation">
+            @for (objective of selectedGame.objectives; track objective.id) {
+              <article class="host-objective">
+                <div class="objective-heading">
+                  <div>
+                    <h4>{{ objective.title }}</h4>
+                    <p>{{ objective.locationDescription }}</p>
+                  </div>
+                  <strong>{{ objective.points }} pts</strong>
+                </div>
+
+                <p class="task-text">{{ objective.taskDescription }}</p>
+
+                @if (objective.imageUrls.length > 0) {
+                  <div class="thumb-strip">
+                    @for (imageUrl of objective.imageUrls; track imageUrl) {
+                      <img [src]="imageUrl" alt="" />
+                    }
+                  </div>
+                }
+              </article>
+            }
+          </div>
+        </section>
+      </section>
+    } @else if (activeView === 'gameEditor') {
+      <section class="view-page">
+        <div class="view-heading">
+          <button class="back-button" type="button" (click)="backToMenu()" title="Back">&larr;</button>
+          <div>
+            <p class="eyebrow">Game editor</p>
+            <h2>Create a game</h2>
+          </div>
+        </div>
+
+        <section class="tool-panel game-editor">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Objectives</p>
+              <h3>Game details</h3>
+            </div>
+            <button class="icon-button" type="button" (click)="addObjective()" title="Add objective">+</button>
+          </div>
+
+          <form (ngSubmit)="createGame()">
+            <div class="field-grid">
+              <label>
+                Game name
+                <input name="gameName" type="text" [(ngModel)]="newGame.name" />
+              </label>
+
+              <label>
+                Minutes
+                <input
+                  name="duration"
+                  type="number"
+                  min="1"
+                  max="480"
+                  [(ngModel)]="newGame.durationMinutes"
+                />
+              </label>
+            </div>
+
+            <div class="objective-editor-list">
+              @for (objective of newGame.objectives; track $index; let index = $index) {
+                <article class="objective-editor">
+                  <div class="objective-editor-head">
+                    <h3>Objective {{ index + 1 }}</h3>
+                    <button
+                      class="plain-button"
+                      type="button"
+                      (click)="removeObjective(index)"
+                      [disabled]="newGame.objectives.length === 1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <label>
+                    Title
+                    <input
+                      name="title-{{ index }}"
+                      type="text"
+                      [(ngModel)]="objective.title"
+                      placeholder="The Thirsty Fountain"
+                    />
+                  </label>
+
+                  <label>
+                    Location description
+                    <textarea
+                      name="location-{{ index }}"
+                      rows="3"
+                      [(ngModel)]="objective.locationDescription"
+                    ></textarea>
+                  </label>
+
+                  <label>
+                    Task description
+                    <textarea
+                      name="task-{{ index }}"
+                      rows="3"
+                      [(ngModel)]="objective.taskDescription"
+                    ></textarea>
+                  </label>
+
+                  <div class="field-grid">
+                    <label>
+                      Points
+                      <input
+                        name="points-{{ index }}"
+                        type="number"
+                        min="1"
+                        [(ngModel)]="objective.points"
+                      />
+                    </label>
+
+                    <label>
+                      Image URLs
+                      <textarea
+                        name="images-{{ index }}"
+                        rows="3"
+                        [(ngModel)]="objective.imageUrlsText"
+                        placeholder="One URL per line"
+                      ></textarea>
+                    </label>
+                  </div>
+                </article>
+              }
+            </div>
+
+            <button type="submit" [disabled]="saving">Save game</button>
+          </form>
+        </section>
+      </section>
+    } @else if (activeView === 'sessionStarter') {
+      <section class="view-page">
+        <div class="view-heading">
+          <button class="back-button" type="button" (click)="backToMenu()" title="Back">&larr;</button>
+          <div>
+            <p class="eyebrow">New session</p>
+            <h2>Start a session</h2>
+          </div>
+        </div>
+
+        <section class="tool-panel">
+          <form (ngSubmit)="createSession()">
+            <label>
+              Game
+              <select name="sessionGame" [(ngModel)]="newSessionGameId">
+                <option value="">Select a game</option>
+                @for (game of games; track game.id) {
+                  <option [value]="game.id">
+                    {{ game.name }} ({{ game.objectiveCount }} objectives)
+                  </option>
+                }
+              </select>
+            </label>
+
+            <label>
+              Session name
+              <input
+                name="sessionName"
+                type="text"
+                [(ngModel)]="newSessionName"
+                placeholder="Saturday afternoon"
+              />
+            </label>
+
+            <button type="submit" [disabled]="saving || games.length === 0">Generate QR</button>
+          </form>
+        </section>
+      </section>
+    }
+  }
+</main>
