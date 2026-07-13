@@ -228,6 +228,50 @@ h3 {
   font-size: 1.1rem;
 }
 
+.site-footer {
+  padding: 2rem 1rem;
+  background: #17213f;
+  color: #ffffff;
+}
+
+.footer-inner {
+  width: min(68rem, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.footer-inner > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.footer-inner strong {
+  font-size: 1.05rem;
+}
+
+.footer-inner span,
+.footer-inner p {
+  color: #d8e1f6;
+}
+
+.footer-inner details {
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  padding-top: 0.8rem;
+}
+
+.footer-inner summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.footer-inner p {
+  margin: 0.6rem 0 0;
+  line-height: 1.55;
+}
+
 @media (min-width: 760px) {
   .hero {
     padding-inline: 4rem;
@@ -247,6 +291,11 @@ h3 {
 
   .feature-layout {
     grid-template-columns: 0.8fr 1.2fr;
+    align-items: start;
+  }
+
+  .footer-inner {
+    grid-template-columns: 1fr 1fr 1fr;
     align-items: start;
   }
 }

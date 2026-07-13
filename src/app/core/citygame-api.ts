@@ -74,7 +74,6 @@ export interface PublicSessionState {
   game: {
     id: number;
     name: string;
-    durationMinutes: number;
   };
   teams: Team[];
   joinedTeam: Team | null;
@@ -87,8 +86,6 @@ export interface PublicSessionState {
 export interface GameSummary {
   id: number;
   name: string;
-  durationMinutes: number;
-  durationSeconds: number;
   objectiveCount: number;
   createdAt?: string;
 }
@@ -123,7 +120,6 @@ export interface HostSessionDetail {
   game: {
     id: number;
     name: string;
-    durationMinutes: number;
   };
   teams: Team[];
   objectives: HostObjective[];
@@ -146,7 +142,6 @@ export interface HostSubmission extends Submission {
 
 export interface CreateGamePayload {
   name: string;
-  durationMinutes: number;
   objectives: Array<{
     title: string;
     locationDescription: string;
@@ -201,7 +196,6 @@ export class CitygameApi {
     const formData = new FormData();
     const game = {
       name: payload.name,
-      durationMinutes: payload.durationMinutes,
       objectives: payload.objectives.map((objective) => ({
         title: objective.title,
         locationDescription: objective.locationDescription,
@@ -243,7 +237,7 @@ export class CitygameApi {
 
   createSession(
     password: string,
-    payload: { gameId: number; name?: string }
+    payload: { gameId: number; name?: string; durationMinutes: number }
   ): Observable<HostSessionDetail> {
     return this.http.post<HostSessionDetail>(`${this.baseUrl}/host/sessions`, payload, {
       headers: this.hostHeaders(password)

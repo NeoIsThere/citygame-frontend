@@ -7,4 +7,6 @@ import { RouterLink } from '@angular/router';
   templateUrl: './landing.html',
   styleUrl: './landing.css'
 })
-export class LandingComponent {}
+export class LandingComponent {
+  readonly currentYear = new Date().getFullYear();
+}

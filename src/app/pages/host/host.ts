@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import {
@@ -22,7 +22,6 @@ interface ObjectiveForm {
 
 interface GameForm {
   name: string;
-  durationMinutes: number;
   objectives: ObjectiveForm[];
 }
 
@@ -34,7 +33,7 @@ type HostView = 'menu' | 'gameEditor' | 'sessionStarter' | 'sessionDetail' | 'ga
   templateUrl: './host.html',
   styleUrl: './host.css'
 })
-export class HostComponent implements OnInit {
+export class HostComponent implements OnInit, OnDestroy {
   password = '';
   isAuthenticated = false;
   games: GameSummary[] = [];
@@ -44,6 +43,7 @@ export class HostComponent implements OnInit {
   newGame: GameForm = this.emptyGame();
   newSessionGameId = '';
   newSessionName = '';
+  newSessionDurationMinutes = 75;
   loading = false;
   saving = false;
   error = '';
@@ -54,6 +54,9 @@ export class HostComponent implements OnInit {
   readonly maxObjectiveImages = 3;
 
   private readonly passwordKey = 'citygame-host-password';
+  private readonly pollMs = 5000;
+  private summaryPollHandle: ReturnType<typeof setInterval> | null = null;
+  private sessionPollHandle: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly api: CitygameApi) {}
 
@@ -64,6 +67,11 @@ export class HostComponent implements OnInit {
       this.password = stored;
       this.verifyPasswordAndLoadDashboard(stored);
     }
+  }
+
+  ngOnDestroy(): void {
+    this.stopSummaryPolling();
+    this.stopSessionPolling();
   }
 
   login(): void {
@@ -78,6 +86,8 @@ export class HostComponent implements OnInit {
   }
 
   logout(): void {
+    this.stopSummaryPolling();
+    this.stopSessionPolling();
     localStorage.removeItem(this.passwordKey);
     this.isAuthenticated = false;
     this.password = '';
@@ -121,6 +131,7 @@ export class HostComponent implements OnInit {
         this.sessions = sessions;
         this.loading = false;
         this.activeView = 'menu';
+        this.startSummaryPolling();
       },
       error: (error) => {
         this.password = password;
@@ -136,6 +147,7 @@ export class HostComponent implements OnInit {
   }
 
   openGameEditor(): void {
+    this.stopSessionPolling();
     this.activeView = 'gameEditor';
     this.selectedGame = null;
     this.error = '';
@@ -143,6 +155,7 @@ export class HostComponent implements OnInit {
   }
 
   openSessionStarter(): void {
+    this.stopSessionPolling();
     this.activeView = 'sessionStarter';
     this.selected = null;
     this.error = '';
@@ -150,6 +163,7 @@ export class HostComponent implements OnInit {
   }
 
   backToMenu(): void {
+    this.stopSessionPolling();
     this.activeView = 'menu';
     this.error = '';
   }
@@ -165,7 +179,6 @@ export class HostComponent implements OnInit {
   createGame(): void {
     const payload = {
       name: this.newGame.name.trim(),
-      durationMinutes: Number(this.newGame.durationMinutes),
       objectives: this.newGame.objectives.map((objective) => ({
         title: objective.title.trim(),
         locationDescription: objective.locationDescription.trim(),
@@ -192,9 +205,15 @@ export class HostComponent implements OnInit {
 
   createSession(): void {
     const gameId = Number(this.newSessionGameId);
+    const durationMinutes = Number(this.newSessionDurationMinutes);
 
     if (!Number.isInteger(gameId)) {
       this.error = 'Select a game first.';
+      return;
+    }
+
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 480) {
+      this.error = 'Session duration must be between 1 and 480 minutes.';
       return;
     }
 
@@ -204,22 +223,25 @@ export class HostComponent implements OnInit {
     this.api
       .createSession(this.password, {
         gameId,
-        name: this.newSessionName.trim() || undefined
+        name: this.newSessionName.trim() || undefined,
+        durationMinutes
       })
       .subscribe({
         next: (detail) => {
           this.selected = detail;
-        this.newSessionName = '';
-        this.notice = 'Session created. QR code is ready.';
-        this.saving = false;
-        this.loadSessionsOnly();
-        this.activeView = 'sessionDetail';
-      },
-      error: (error) => this.handleError(error, 'Could not create session.')
-    });
+          this.newSessionName = '';
+          this.notice = 'Session created. QR code is ready.';
+          this.saving = false;
+          this.loadSessionsOnly();
+          this.activeView = 'sessionDetail';
+          this.startSessionPolling();
+        },
+        error: (error) => this.handleError(error, 'Could not create session.')
+      });
   }
 
   selectGame(gameId: number): void {
+    this.stopSessionPolling();
     this.loading = true;
     this.error = '';
 
@@ -267,6 +289,7 @@ export class HostComponent implements OnInit {
         this.selected = detail;
         this.activeView = 'sessionDetail';
         this.loading = false;
+        this.startSessionPolling();
       },
       error: (error) => this.handleError(error, 'Could not load this session.')
     });
@@ -290,6 +313,7 @@ export class HostComponent implements OnInit {
         this.notice = `Session ${action} complete.`;
         this.saving = false;
         this.loadSessionsOnly();
+        this.startSessionPolling();
       },
       error: (error) => this.handleError(error, `Could not ${action} this session.`)
     });
@@ -316,6 +340,7 @@ export class HostComponent implements OnInit {
       next: () => {
         this.notice = 'Session deleted.';
         this.selected = null;
+        this.stopSessionPolling();
         this.saving = false;
         this.activeView = 'menu';
         this.loadSessionsOnly();
@@ -338,6 +363,7 @@ export class HostComponent implements OnInit {
         this.notice = 'Score updated.';
         this.saving = false;
         this.loadSessionsOnly();
+        this.startSessionPolling();
       },
       error: (error) => this.handleError(error, 'Could not update score.')
     });
@@ -364,6 +390,7 @@ export class HostComponent implements OnInit {
           this.notice = approved ? 'Submission approved.' : 'Submission rejected and photos deleted.';
           this.saving = false;
           this.loadSessionsOnly();
+          this.startSessionPolling();
         },
         error: (error) => this.handleError(error, 'Could not review this submission.')
       });
@@ -423,6 +450,10 @@ export class HostComponent implements OnInit {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 
+  formatDurationMinutes(totalSeconds: number): string {
+    return `${Math.round(totalSeconds / 60)} min`;
+  }
+
   private loadSessionsOnly(): void {
     this.api.hostSessions(this.password).subscribe({
       next: (sessions) => {
@@ -432,10 +463,81 @@ export class HostComponent implements OnInit {
     });
   }
 
+  private startSummaryPolling(): void {
+    this.stopSummaryPolling();
+
+    this.summaryPollHandle = setInterval(() => this.refreshSessionSummaries(), this.pollMs);
+  }
+
+  private stopSummaryPolling(): void {
+    if (this.summaryPollHandle) {
+      clearInterval(this.summaryPollHandle);
+      this.summaryPollHandle = null;
+    }
+  }
+
+  private refreshSessionSummaries(): void {
+    if (!this.isAuthenticated || this.saving) {
+      return;
+    }
+
+    this.api.hostSessions(this.password).subscribe({
+      next: (sessions) => {
+        this.sessions = sessions;
+      },
+      error: (error) => {
+        if (error.status === 401) {
+          this.handleError(error, 'Could not refresh sessions.');
+        }
+      }
+    });
+  }
+
+  private startSessionPolling(): void {
+    this.stopSessionPolling();
+
+    this.sessionPollHandle = setInterval(() => this.refreshSelectedSession(), this.pollMs);
+  }
+
+  private stopSessionPolling(): void {
+    if (this.sessionPollHandle) {
+      clearInterval(this.sessionPollHandle);
+      this.sessionPollHandle = null;
+    }
+  }
+
+  private refreshSelectedSession(): void {
+    if (!this.isAuthenticated || !this.selected || this.saving) {
+      return;
+    }
+
+    const sessionId = this.selected.session.id;
+
+    this.api.hostSession(this.password, sessionId).subscribe({
+      next: (detail) => {
+        if (this.selected?.session.id === sessionId) {
+          this.selected = detail;
+        }
+      },
+      error: (error) => {
+        if (error.status === 401) {
+          this.handleError(error, 'Could not refresh this session.');
+          return;
+        }
+
+        if (error.status === 404) {
+          this.selected = null;
+          this.stopSessionPolling();
+          this.activeView = 'menu';
+          this.loadSessionsOnly();
+        }
+      }
+    });
+  }
+
   private emptyGame(): GameForm {
     return {
       name: '',
-      durationMinutes: 75,
       objectives: [this.emptyObjective(), this.emptyObjective(), this.emptyObjective()]
     };
   }
@@ -458,6 +560,8 @@ export class HostComponent implements OnInit {
     if (error.status === 401) {
       localStorage.removeItem(this.passwordKey);
       this.isAuthenticated = false;
+      this.stopSummaryPolling();
+      this.stopSessionPolling();
     }
   }
 }

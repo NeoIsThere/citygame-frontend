@@ -86,7 +86,7 @@
                   <small>{{ session.gameName }}</small>
                 </span>
                 <span class="session-meta">
-                  {{ session.status }} - {{ session.teamCount }} teams
+                  {{ session.status }} - {{ formatDurationMinutes(session.durationSeconds) }} - {{ session.teamCount }} teams
                   @if (session.pendingSubmissionCount > 0) {
                     - {{ session.pendingSubmissionCount }} reviews
                   }
@@ -132,7 +132,6 @@
                   <strong>{{ game.name }}</strong>
                   <small>{{ game.objectiveCount }} objectives</small>
                 </span>
-                <span class="session-meta">{{ game.durationMinutes }} min</span>
               </button>
             }
           </div>
@@ -326,7 +325,6 @@
 
         <section class="tool-panel game-detail-panel">
           <div class="game-stats">
-            <span>{{ selectedGame.durationMinutes }} min</span>
             <span>{{ selectedGame.objectiveCount }} objectives</span>
           </div>
 
@@ -379,17 +377,6 @@
               <label>
                 Game name
                 <input name="gameName" type="text" [(ngModel)]="newGame.name" />
-              </label>
-
-              <label>
-                Minutes
-                <input
-                  name="duration"
-                  type="number"
-                  min="1"
-                  max="480"
-                  [(ngModel)]="newGame.durationMinutes"
-                />
               </label>
             </div>
 
@@ -515,6 +502,17 @@
                 type="text"
                 [(ngModel)]="newSessionName"
                 placeholder="Saturday afternoon"
+              />
+            </label>
+
+            <label>
+              Minutes
+              <input
+                name="sessionDuration"
+                type="number"
+                min="1"
+                max="480"
+                [(ngModel)]="newSessionDurationMinutes"
               />
             </label>
 

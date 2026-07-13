@@ -24,6 +24,7 @@ export class PlayerSessionComponent implements OnInit, OnDestroy {
 
   private refreshHandle: ReturnType<typeof setInterval> | null = null;
   private tickHandle: ReturnType<typeof setInterval> | null = null;
+  private readonly pollMs = 5000;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -42,7 +43,7 @@ export class PlayerSessionComponent implements OnInit, OnDestroy {
     this.currentTeamId = this.readTeamId();
     this.load(true);
 
-    this.refreshHandle = setInterval(() => this.load(false), 10000);
+    this.refreshHandle = setInterval(() => this.load(false), this.pollMs);
     this.tickHandle = setInterval(() => this.tick(), 1000);
   }
 
