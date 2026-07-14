@@ -48,7 +48,7 @@ jobs:
           NODE
 
       - name: Build frontend
-        run: npm run build
+        run: npx --no-install ng build
 
       - name: Prepare Pages artifact
         run: |
