@@ -39,14 +39,14 @@
 
     @if (activeView === 'menu') {
       <section class="host-menu">
-        <button class="menu-card" type="button" (click)="openGameEditor()">
-          <span>Create a new game</span>
-          <small>Build objectives and points.</small>
-        </button>
-
         <button class="menu-card accent" type="button" (click)="openSessionStarter()">
           <span>Start a session</span>
           <small>Pick a game and make a QR.</small>
+        </button>
+
+        <button class="menu-card" type="button" (click)="openSpotLibrary()">
+          <span>Spot library</span>
+          <small>Manage reusable spots.</small>
         </button>
       </section>
 
@@ -118,6 +118,7 @@
             <p class="eyebrow">Existing games</p>
             <h2>Game library</h2>
           </div>
+          <button class="plain-button" type="button" (click)="openGameEditor()">+ New game</button>
         </div>
 
         @if (loading && games.length === 0) {
@@ -164,19 +165,21 @@
           </div>
 
           <div class="action-row">
-            <button type="button" (click)="runAction('start')" [disabled]="saving || selected.session.status !== 'waiting'">
-              Start
-            </button>
-            <button type="button" (click)="runAction('pause')" [disabled]="saving || selected.session.status !== 'running'">
-              Pause
-            </button>
-            <button
-              type="button"
-              (click)="runAction('resume')"
-              [disabled]="saving || (selected.session.status !== 'paused' && selected.session.status !== 'stopped')"
-            >
-              Resume
-            </button>
+            @if (selected.session.status === 'waiting') {
+              <button class="success-button" type="button" (click)="runAction('start')" [disabled]="saving">
+                Start
+              </button>
+            }
+            @if (selected.session.status === 'running') {
+              <button type="button" (click)="runAction('pause')" [disabled]="saving">
+                Pause
+              </button>
+            }
+            @if (selected.session.status === 'paused' || selected.session.status === 'stopped') {
+              <button class="success-button" type="button" (click)="runAction('resume')" [disabled]="saving">
+                Resume
+              </button>
+            }
             <button class="danger-button" type="button" (click)="runAction('restart')" [disabled]="saving">
               Restart
             </button>
@@ -363,37 +366,32 @@
           </div>
         </div>
 
-        <section class="tool-panel game-editor">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Objectives</p>
-              <h3>Game details</h3>
-            </div>
-            <button class="icon-button" type="button" (click)="addObjective()" title="Add objective">+</button>
-          </div>
-
-          <form (ngSubmit)="createGame()">
-            <div class="field-grid">
-              <label>
-                Game name
-                <input name="gameName" type="text" [(ngModel)]="newGame.name" />
-              </label>
+        <div class="game-editor-layout">
+          <section class="tool-panel game-editor">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Objectives</p>
+                <h3>Game details</h3>
+              </div>
             </div>
 
-            <div class="objective-editor-list">
-              @for (objective of newGame.objectives; track $index; let index = $index) {
-                <article class="objective-editor">
-                  <div class="objective-editor-head">
-                    <h3>Objective {{ index + 1 }}</h3>
-                    <button
-                      class="plain-button"
-                      type="button"
-                      (click)="removeObjective(index)"
-                      [disabled]="newGame.objectives.length === 1"
-                    >
-                      Remove
-                    </button>
-                  </div>
+            <form (ngSubmit)="createGame()">
+              <div class="field-grid">
+                <label>
+                  Game name
+                  <input name="gameName" type="text" [(ngModel)]="newGame.name" />
+                </label>
+              </div>
+
+              <div class="objective-editor-list">
+                @for (objective of newGame.objectives; track $index; let index = $index) {
+                  <article class="objective-editor">
+                    <div class="objective-editor-head">
+                      <h3>Objective {{ index + 1 }}</h3>
+                      <button class="plain-button" type="button" (click)="removeObjective(index)">
+                        Remove
+                      </button>
+                    </div>
 
                   <label>
                     Title
@@ -443,8 +441,19 @@
                         accept="image/jpeg,image/png,image/webp"
                         multiple
                         (change)="onObjectiveImagesSelected(index, $event)"
-                        [disabled]="objective.imageFiles.length >= maxObjectiveImages"
+                        [disabled]="objective.existingImageUrls.length + objective.imageFiles.length >= maxObjectiveImages"
                       />
+
+                      @if (objective.existingImageUrls.length > 0) {
+                        <div class="thumb-strip">
+                          @for (url of objective.existingImageUrls; track url; let imgIndex = $index) {
+                            <div class="thumb-item">
+                              <img [src]="url" alt="" />
+                              <button class="plain-button" type="button" (click)="removeExistingImage(index, imgIndex)" title="Remove">✕</button>
+                            </div>
+                          }
+                        </div>
+                      }
 
                       @if (objective.imageFiles.length > 0) {
                         <div class="selected-file-list">
@@ -463,13 +472,270 @@
                       }
                     </div>
                   </div>
+
+                  <label class="checkbox-label">
+                    <input
+                      name="saveToLibrary-{{ index }}"
+                      type="checkbox"
+                      [(ngModel)]="objective.saveToLibrary"
+                    />
+                    Save this spot to the library
+                  </label>
                 </article>
               }
             </div>
 
-            <button type="submit" [disabled]="saving">Save game</button>
+              <button class="plain-button" type="button" (click)="addObjective()">+ New objective</button>
+
+              <button type="submit" [disabled]="saving">Save game</button>
+            </form>
+          </section>
+
+          <div class="spot-library-panel">
+            <section class="tool-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Spot library</p>
+                  <h3>Pick a spot</h3>
+                </div>
+                <button class="plain-button" type="button" (click)="openSpotLibrary()">Manage</button>
+              </div>
+
+              @if (spots.length === 0) {
+                <p class="muted" style="margin-top: 0.6rem;">No spots yet. <button class="plain-button" type="button" (click)="openSpotLibrary()">Add some to the library.</button></p>
+              } @else {
+                @if (availableCities.length > 1) {
+                  <label style="margin-top: 0.6rem; display: grid; gap: 0.35rem;">
+                    <select name="editorCityFilter" [(ngModel)]="selectedCity">
+                      <option value="">All cities</option>
+                      @for (city of availableCities; track city) {
+                        <option [value]="city">{{ city }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+
+                <div class="spot-library-list" style="margin-top: 0.8rem;">
+                  @for (spot of filteredSpots; track spot.id) {
+                    <div class="spot-library-item">
+                      <div class="spot-library-item-head">
+                        <div>
+                          <p class="eyebrow">{{ spot.city }}</p>
+                          <h4>{{ spot.title }}</h4>
+                          <p class="muted" style="font-size: 0.8rem; margin-bottom: 0;">{{ spot.locationDescription }}</p>
+                        </div>
+                        <strong style="flex: 0 0 auto; border-radius: 999px; padding: 0.28rem 0.55rem; background: #ff6b6b; color: #fff; font-size: 0.78rem;">{{ spot.points }} pts</strong>
+                      </div>
+                      <p class="task-text">{{ spot.taskDescription }}</p>
+                      @if (spot.imageUrls.length > 0) {
+                        <div class="thumb-strip">
+                          @for (url of spot.imageUrls; track url) {
+                            <img [src]="url" alt="" />
+                          }
+                        </div>
+                      }
+                      <button type="button" (click)="addSpotAsObjective(spot)">+ Add to game</button>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+          </div>
+        </div>
+      </section>
+    } @else if (activeView === 'spotLibrary') {
+      <section class="view-page">
+        <div class="view-heading">
+          <button class="back-button" type="button" (click)="backToMenu()" title="Back">&larr;</button>
+          <div>
+            <p class="eyebrow">Reusable spots</p>
+            <h2>Spot library</h2>
+          </div>
+        </div>
+
+        <section class="tool-panel game-editor">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">New spot</p>
+              <h3>Add to library</h3>
+            </div>
+          </div>
+
+          <form (ngSubmit)="saveNewSpot()">
+            <label>
+              City
+              <input name="spotCity" type="text" [(ngModel)]="spotForm.city" placeholder="Nice" />
+            </label>
+
+            <label>
+              Title
+              <input name="spotTitle" type="text" [(ngModel)]="spotForm.title" placeholder="The Thirsty Fountain" />
+            </label>
+
+            <label>
+              Location description
+              <textarea name="spotLocation" rows="3" [(ngModel)]="spotForm.locationDescription"></textarea>
+            </label>
+
+            <label>
+              Task description
+              <textarea name="spotTask" rows="3" [(ngModel)]="spotForm.taskDescription"></textarea>
+            </label>
+
+            <div class="field-grid">
+              <label>
+                Points
+                <input name="spotPoints" type="number" min="1" [(ngModel)]="spotForm.points" />
+              </label>
+
+              <div class="file-field">
+                <label for="spot-images-new">Reference images</label>
+                <input
+                  id="spot-images-new"
+                  name="spot-images-new"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  (change)="onSpotImagesSelected($event)"
+                  [disabled]="spotForm.imageFiles.length >= maxObjectiveImages"
+                />
+
+                @if (spotForm.imageFiles.length > 0) {
+                  <div class="selected-file-list">
+                    @for (file of spotForm.imageFiles; track $index; let i = $index) {
+                      <button class="selected-file" type="button" (click)="removeSpotNewImage(i)" title="Remove">
+                        <span>{{ file.name }}</span>
+                        <small>{{ (file.size / 1024 / 1024).toFixed(1) }} MB</small>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+
+            <button type="submit" [disabled]="savingSpot">Add spot</button>
           </form>
         </section>
+
+        @if (spots.length > 0) {
+          <section class="tool-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">{{ filteredSpots.length }} spot{{ filteredSpots.length === 1 ? '' : 's' }}</p>
+                <h3>Library</h3>
+              </div>
+              @if (availableCities.length > 1) {
+                <label>
+                  <select name="cityFilter" [(ngModel)]="selectedCity">
+                    <option value="">All cities</option>
+                    @for (city of availableCities; track city) {
+                      <option [value]="city">{{ city }}</option>
+                    }
+                  </select>
+                </label>
+              }
+            </div>
+
+            <div class="objective-validation">
+              @for (spot of filteredSpots; track spot.id) {
+                @if (editingSpot?.id === spot.id) {
+                  <article class="host-objective">
+                    <form (ngSubmit)="saveSpotEdit()">
+                      <label>
+                        City
+                        <input name="editCity" type="text" [(ngModel)]="spotForm.city" />
+                      </label>
+
+                      <label>
+                        Title
+                        <input name="editTitle" type="text" [(ngModel)]="spotForm.title" />
+                      </label>
+
+                      <label>
+                        Location description
+                        <textarea name="editLocation" rows="3" [(ngModel)]="spotForm.locationDescription"></textarea>
+                      </label>
+
+                      <label>
+                        Task description
+                        <textarea name="editTask" rows="3" [(ngModel)]="spotForm.taskDescription"></textarea>
+                      </label>
+
+                      <div class="field-grid">
+                        <label>
+                          Points
+                          <input name="editPoints" type="number" min="1" [(ngModel)]="spotForm.points" />
+                        </label>
+
+                        <div class="file-field">
+                          <label for="spot-images-edit">Add images</label>
+                          <input
+                            id="spot-images-edit"
+                            name="spot-images-edit"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            multiple
+                            (change)="onSpotImagesSelected($event)"
+                            [disabled]="spotForm.keepImageUrls.length + spotForm.imageFiles.length >= maxObjectiveImages"
+                          />
+                        </div>
+                      </div>
+
+                      @if (spotForm.keepImageUrls.length > 0 || spotForm.imageFiles.length > 0) {
+                        <div class="thumb-strip">
+                          @for (url of spotForm.keepImageUrls; track url; let i = $index) {
+                            <div class="thumb-item">
+                              <img [src]="url" alt="" />
+                              <button class="plain-button" type="button" (click)="removeSpotFormImage(i)" title="Remove">✕</button>
+                            </div>
+                          }
+                          @for (file of spotForm.imageFiles; track $index; let i = $index) {
+                            <div class="thumb-item">
+                              <span class="thumb-pending">{{ file.name }}</span>
+                              <button class="plain-button" type="button" (click)="removeSpotNewImage(i)" title="Remove">✕</button>
+                            </div>
+                          }
+                        </div>
+                      }
+
+                      <div class="action-row">
+                        <button type="submit" [disabled]="savingSpot">Save</button>
+                        <button class="plain-button" type="button" (click)="cancelSpotEdit()" [disabled]="savingSpot">Cancel</button>
+                        <button class="danger-button" type="button" (click)="deleteSpot(spot)" [disabled]="savingSpot">Delete</button>
+                      </div>
+                    </form>
+                  </article>
+                } @else {
+                  <article class="host-objective">
+                    <div class="objective-heading">
+                      <div>
+                        <p class="eyebrow">{{ spot.city }}</p>
+                        <h4>{{ spot.title }}</h4>
+                        <p>{{ spot.locationDescription }}</p>
+                      </div>
+                      <strong>{{ spot.points }} pts</strong>
+                    </div>
+
+                    <p class="task-text">{{ spot.taskDescription }}</p>
+
+                    @if (spot.imageUrls.length > 0) {
+                      <div class="thumb-strip">
+                        @for (url of spot.imageUrls; track url) {
+                          <img [src]="url" alt="" />
+                        }
+                      </div>
+                    }
+
+                    <div class="action-row">
+                      <button class="plain-button" type="button" (click)="startEditingSpot(spot)" [disabled]="savingSpot">Edit</button>
+                      <button class="danger-button" type="button" (click)="deleteSpot(spot)" [disabled]="savingSpot">Delete</button>
+                    </div>
+                  </article>
+                }
+              }
+            </div>
+          </section>
+        }
       </section>
     } @else if (activeView === 'sessionStarter') {
       <section class="view-page">

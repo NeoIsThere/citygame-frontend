@@ -140,6 +140,27 @@ export interface HostSubmission extends Submission {
   };
 }
 
+export interface SpotSummary {
+  id: number;
+  city: string;
+  title: string;
+  locationDescription: string;
+  taskDescription: string;
+  points: number;
+  imageUrls: string[];
+  createdAt: string;
+}
+
+export interface SpotForm {
+  city: string;
+  title: string;
+  locationDescription: string;
+  taskDescription: string;
+  points: number;
+  imageFiles: File[];
+  keepImageUrls: string[];
+}
+
 export interface CreateGamePayload {
   name: string;
   objectives: Array<{
@@ -148,6 +169,8 @@ export interface CreateGamePayload {
     taskDescription: string;
     points: number;
     imageFiles: File[];
+    existingImageUrls?: string[];
+    saveToLibrary?: boolean;
   }>;
 }
 
@@ -200,7 +223,9 @@ export class CitygameApi {
         title: objective.title,
         locationDescription: objective.locationDescription,
         taskDescription: objective.taskDescription,
-        points: objective.points
+        points: objective.points,
+        existingImageUrls: objective.existingImageUrls ?? [],
+        saveToLibrary: objective.saveToLibrary ?? false
       }))
     };
 
@@ -296,6 +321,53 @@ export class CitygameApi {
 
   qrUrl(sessionId: string): string {
     return `${this.baseUrl}/sessions/${sessionId}/qr.svg`;
+  }
+
+  hostSpots(password: string): Observable<SpotSummary[]> {
+    return this.http.get<SpotSummary[]>(`${this.baseUrl}/host/spots`, {
+      headers: this.hostHeaders(password)
+    });
+  }
+
+  createSpot(password: string, form: SpotForm): Observable<SpotSummary> {
+    const formData = new FormData();
+    formData.set('city', form.city);
+    formData.set('title', form.title);
+    formData.set('locationDescription', form.locationDescription);
+    formData.set('taskDescription', form.taskDescription);
+    formData.set('points', String(form.points));
+
+    for (const file of form.imageFiles) {
+      formData.append('images', file);
+    }
+
+    return this.http.post<SpotSummary>(`${this.baseUrl}/host/spots`, formData, {
+      headers: this.hostHeaders(password)
+    });
+  }
+
+  updateSpot(password: string, spotId: number, form: SpotForm): Observable<SpotSummary> {
+    const formData = new FormData();
+    formData.set('city', form.city);
+    formData.set('title', form.title);
+    formData.set('locationDescription', form.locationDescription);
+    formData.set('taskDescription', form.taskDescription);
+    formData.set('points', String(form.points));
+    formData.set('keepImageUrls', JSON.stringify(form.keepImageUrls));
+
+    for (const file of form.imageFiles) {
+      formData.append('images', file);
+    }
+
+    return this.http.patch<SpotSummary>(`${this.baseUrl}/host/spots/${spotId}`, formData, {
+      headers: this.hostHeaders(password)
+    });
+  }
+
+  deleteSpot(password: string, spotId: number): Observable<{ ok: true }> {
+    return this.http.delete<{ ok: true }>(`${this.baseUrl}/host/spots/${spotId}`, {
+      headers: this.hostHeaders(password)
+    });
   }
 
   private hostHeaders(password: string): HttpHeaders {

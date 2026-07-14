@@ -9,6 +9,8 @@ import {
   HostSubmission,
   HostSessionDetail,
   HostSessionSummary,
+  SpotSummary,
+  SpotForm,
   Team
 } from '../../core/citygame-api';
 
@@ -18,6 +20,8 @@ interface ObjectiveForm {
   taskDescription: string;
   points: number;
   imageFiles: File[];
+  existingImageUrls: string[];
+  saveToLibrary: boolean;
 }
 
 interface GameForm {
@@ -25,7 +29,7 @@ interface GameForm {
   objectives: ObjectiveForm[];
 }
 
-type HostView = 'menu' | 'gameEditor' | 'sessionStarter' | 'sessionDetail' | 'gameDetail';
+type HostView = 'menu' | 'gameEditor' | 'sessionStarter' | 'sessionDetail' | 'gameDetail' | 'spotLibrary';
 
 @Component({
   selector: 'app-host',
@@ -50,6 +54,13 @@ export class HostComponent implements OnInit, OnDestroy {
   notice = '';
   showSessionQrCodes = false;
   activeView: HostView = 'menu';
+
+  spots: SpotSummary[] = [];
+  spotPickerIndex: number | null = null;
+  editingSpot: SpotSummary | null = null;
+  spotForm: SpotForm = this.emptySpotForm();
+  savingSpot = false;
+  selectedCity = '';
 
   readonly maxObjectiveImages = 3;
 
@@ -104,11 +115,13 @@ export class HostComponent implements OnInit, OnDestroy {
 
     forkJoin({
       games: this.api.hostGames(this.password),
-      sessions: this.api.hostSessions(this.password)
+      sessions: this.api.hostSessions(this.password),
+      spots: this.api.hostSpots(this.password)
     }).subscribe({
-      next: ({ games, sessions }) => {
+      next: ({ games, sessions, spots }) => {
         this.games = games;
         this.sessions = sessions;
+        this.spots = spots;
         this.loading = false;
       },
       error: (error) => this.handleError(error, 'Could not load host dashboard.')
@@ -121,14 +134,16 @@ export class HostComponent implements OnInit, OnDestroy {
 
     forkJoin({
       games: this.api.hostGames(password),
-      sessions: this.api.hostSessions(password)
+      sessions: this.api.hostSessions(password),
+      spots: this.api.hostSpots(password)
     }).subscribe({
-      next: ({ games, sessions }) => {
+      next: ({ games, sessions, spots }) => {
         this.password = password;
         this.isAuthenticated = true;
         localStorage.setItem(this.passwordKey, password);
         this.games = games;
         this.sessions = sessions;
+        this.spots = spots;
         this.loading = false;
         this.activeView = 'menu';
         this.startSummaryPolling();
@@ -148,10 +163,196 @@ export class HostComponent implements OnInit, OnDestroy {
 
   openGameEditor(): void {
     this.stopSessionPolling();
+    this.newGame = this.emptyGame();
+    this.spotPickerIndex = null;
     this.activeView = 'gameEditor';
     this.selectedGame = null;
     this.error = '';
     this.notice = '';
+  }
+
+  openSpotLibrary(): void {
+    this.stopSessionPolling();
+    this.activeView = 'spotLibrary';
+    this.editingSpot = null;
+    this.spotForm = this.emptySpotForm();
+    this.selectedCity = '';
+    this.error = '';
+    this.notice = '';
+  }
+
+  openSpotPicker(index: number): void {
+    this.spotPickerIndex = this.spotPickerIndex === index ? null : index;
+  }
+
+  addSpotAsObjective(spot: SpotSummary): void {
+    const emptyIndex = this.newGame.objectives.findIndex(
+      (o) => !o.title && !o.locationDescription && !o.taskDescription && o.imageFiles.length === 0 && o.existingImageUrls.length === 0
+    );
+
+    if (emptyIndex >= 0) {
+      this.applySpot(emptyIndex, spot);
+    } else {
+      this.newGame.objectives.push(this.emptyObjective());
+      this.applySpot(this.newGame.objectives.length - 1, spot);
+    }
+
+    this.notice = `"${spot.title}" added to game.`;
+  }
+
+  applySpot(index: number, spot: SpotSummary): void {
+    const objective = this.newGame.objectives[index];
+
+    if (!objective) {
+      return;
+    }
+
+    objective.title = spot.title;
+    objective.locationDescription = spot.locationDescription;
+    objective.taskDescription = spot.taskDescription;
+    objective.points = spot.points;
+    objective.existingImageUrls = [...spot.imageUrls];
+    objective.imageFiles = [];
+    this.spotPickerIndex = null;
+  }
+
+  removeExistingImage(objectiveIndex: number, imageIndex: number): void {
+    this.newGame.objectives[objectiveIndex].existingImageUrls.splice(imageIndex, 1);
+  }
+
+  startEditingSpot(spot: SpotSummary): void {
+    this.editingSpot = spot;
+    this.spotForm = {
+      city: spot.city,
+      title: spot.title,
+      locationDescription: spot.locationDescription,
+      taskDescription: spot.taskDescription,
+      points: spot.points,
+      imageFiles: [],
+      keepImageUrls: [...spot.imageUrls]
+    };
+    this.error = '';
+  }
+
+  cancelSpotEdit(): void {
+    this.editingSpot = null;
+    this.spotForm = this.emptySpotForm();
+  }
+
+  removeSpotFormImage(index: number): void {
+    this.spotForm.keepImageUrls.splice(index, 1);
+  }
+
+  onSpotImagesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    const remainingSlots = this.maxObjectiveImages - this.spotForm.keepImageUrls.length - this.spotForm.imageFiles.length;
+
+    if (remainingSlots <= 0) {
+      this.error = `Each spot can have up to ${this.maxObjectiveImages} images.`;
+      input.value = '';
+      return;
+    }
+
+    this.spotForm.imageFiles = [...this.spotForm.imageFiles, ...files.slice(0, remainingSlots)];
+    this.error = '';
+    input.value = '';
+  }
+
+  removeSpotNewImage(index: number): void {
+    this.spotForm.imageFiles.splice(index, 1);
+  }
+
+  saveNewSpot(): void {
+    if (!this.spotForm.title.trim() || !this.spotForm.locationDescription.trim() || !this.spotForm.taskDescription.trim()) {
+      this.error = 'Title, location, and task are required.';
+      return;
+    }
+
+    this.savingSpot = true;
+    this.error = '';
+
+    const form: SpotForm = {
+      ...this.spotForm,
+      title: this.spotForm.title.trim(),
+      locationDescription: this.spotForm.locationDescription.trim(),
+      taskDescription: this.spotForm.taskDescription.trim()
+    };
+
+    this.api.createSpot(this.password, form).subscribe({
+      next: (spot) => {
+        this.spots = [spot, ...this.spots];
+        this.spotForm = this.emptySpotForm();
+        this.notice = 'Spot saved to library.';
+        this.savingSpot = false;
+      },
+      error: (error) => {
+        this.error = error.error?.message || 'Could not save spot.';
+        this.savingSpot = false;
+      }
+    });
+  }
+
+  saveSpotEdit(): void {
+    if (!this.editingSpot) {
+      return;
+    }
+
+    if (!this.spotForm.title.trim() || !this.spotForm.locationDescription.trim() || !this.spotForm.taskDescription.trim()) {
+      this.error = 'Title, location, and task are required.';
+      return;
+    }
+
+    this.savingSpot = true;
+    this.error = '';
+
+    const form: SpotForm = {
+      ...this.spotForm,
+      title: this.spotForm.title.trim(),
+      locationDescription: this.spotForm.locationDescription.trim(),
+      taskDescription: this.spotForm.taskDescription.trim()
+    };
+
+    this.api.updateSpot(this.password, this.editingSpot.id, form).subscribe({
+      next: (updated) => {
+        this.spots = this.spots.map((s) => (s.id === updated.id ? updated : s));
+        this.editingSpot = null;
+        this.spotForm = this.emptySpotForm();
+        this.notice = 'Spot updated.';
+        this.savingSpot = false;
+      },
+      error: (error) => {
+        this.error = error.error?.message || 'Could not update spot.';
+        this.savingSpot = false;
+      }
+    });
+  }
+
+  deleteSpot(spot: SpotSummary): void {
+    if (!confirm(`Delete "${spot.title}" from the library?`)) {
+      return;
+    }
+
+    this.savingSpot = true;
+    this.error = '';
+
+    this.api.deleteSpot(this.password, spot.id).subscribe({
+      next: () => {
+        this.spots = this.spots.filter((s) => s.id !== spot.id);
+
+        if (this.editingSpot?.id === spot.id) {
+          this.editingSpot = null;
+          this.spotForm = this.emptySpotForm();
+        }
+
+        this.notice = 'Spot deleted.';
+        this.savingSpot = false;
+      },
+      error: (error) => {
+        this.error = error.error?.message || 'Could not delete spot.';
+        this.savingSpot = false;
+      }
+    });
   }
 
   openSessionStarter(): void {
@@ -169,10 +370,6 @@ export class HostComponent implements OnInit, OnDestroy {
   }
 
   removeObjective(index: number): void {
-    if (this.newGame.objectives.length === 1) {
-      return;
-    }
-
     this.newGame.objectives.splice(index, 1);
   }
 
@@ -184,7 +381,9 @@ export class HostComponent implements OnInit, OnDestroy {
         locationDescription: objective.locationDescription.trim(),
         taskDescription: objective.taskDescription.trim(),
         points: Number(objective.points),
-        imageFiles: objective.imageFiles
+        imageFiles: objective.imageFiles,
+        existingImageUrls: objective.existingImageUrls,
+        saveToLibrary: objective.saveToLibrary
       }))
     };
 
@@ -195,6 +394,7 @@ export class HostComponent implements OnInit, OnDestroy {
       next: () => {
         this.notice = 'Game created.';
         this.newGame = this.emptyGame();
+        this.spotPickerIndex = null;
         this.saving = false;
         this.loadDashboard();
         this.activeView = 'menu';
@@ -418,7 +618,7 @@ export class HostComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const remainingSlots = this.maxObjectiveImages - objective.imageFiles.length;
+    const remainingSlots = this.maxObjectiveImages - objective.existingImageUrls.length - objective.imageFiles.length;
 
     if (remainingSlots <= 0) {
       this.error = `Each objective can have up to ${this.maxObjectiveImages} images.`;
@@ -452,6 +652,17 @@ export class HostComponent implements OnInit, OnDestroy {
 
   formatDurationMinutes(totalSeconds: number): string {
     return `${Math.round(totalSeconds / 60)} min`;
+  }
+
+  get availableCities(): string[] {
+    return [...new Set(this.spots.map((s) => s.city))].sort();
+  }
+
+  get filteredSpots(): SpotSummary[] {
+    if (!this.selectedCity) {
+      return this.spots;
+    }
+    return this.spots.filter((s) => s.city === this.selectedCity);
   }
 
   private loadSessionsOnly(): void {
@@ -538,7 +749,7 @@ export class HostComponent implements OnInit, OnDestroy {
   private emptyGame(): GameForm {
     return {
       name: '',
-      objectives: [this.emptyObjective(), this.emptyObjective(), this.emptyObjective()]
+      objectives: []
     };
   }
 
@@ -548,7 +759,21 @@ export class HostComponent implements OnInit, OnDestroy {
       locationDescription: '',
       taskDescription: '',
       points: 20,
-      imageFiles: []
+      imageFiles: [],
+      existingImageUrls: [],
+      saveToLibrary: false
+    };
+  }
+
+  private emptySpotForm(): SpotForm {
+    return {
+      city: '',
+      title: '',
+      locationDescription: '',
+      taskDescription: '',
+      points: 20,
+      imageFiles: [],
+      keepImageUrls: []
     };
   }
 

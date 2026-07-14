@@ -249,6 +249,10 @@ button:disabled {
   background: #ffb3c1;
 }
 
+.success-button {
+  background: #8ce99a;
+}
+
 .field-grid,
 .detail-grid {
   display: grid;
@@ -553,6 +557,134 @@ small {
   background: #f4f7fb;
 }
 
+.game-editor-layout {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+.spot-library-panel {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.spot-library-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.spot-library-item {
+  display: grid;
+  gap: 0.5rem;
+  border: 2px solid #17213f;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: #f8fbff;
+}
+
+.spot-library-item-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.spot-library-item-head div {
+  min-width: 0;
+}
+
+.spot-library-item h4 {
+  margin-bottom: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.spot-library-item .task-text {
+  font-size: 0.82rem;
+}
+
+.spot-library-item button {
+  flex: 0 0 auto;
+  min-height: 2.2rem;
+  padding: 0 0.65rem;
+  font-size: 0.82rem;
+}
+
+.head-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.checkbox-label {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.thumb-item {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.thumb-item button {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  width: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 0.7rem;
+  box-shadow: none;
+}
+
+.thumb-pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 5.5rem;
+  height: 4rem;
+  border: 2px dashed #8fa4d3;
+  border-radius: 8px;
+  background: #f0f4fc;
+  font-size: 0.7rem;
+  color: #52607f;
+  text-align: center;
+  padding: 0.25rem;
+  overflow: hidden;
+}
+
+.spot-picker {
+  display: grid;
+  gap: 0.6rem;
+  border: 2px dashed #0f7f88;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: #f0fafa;
+}
+
+.spot-picker-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.spot-picker-list button {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  background: #ffffff;
+  box-shadow: none;
+  padding: 0.6rem 0.75rem;
+}
+
 @media (min-width: 760px) {
   .host-shell {
     padding: 2rem;
@@ -563,7 +695,7 @@ small {
   }
 
   .host-menu {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .field-grid,
@@ -577,6 +709,19 @@ small {
 
   .team-toggle-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .game-editor-layout {
+    grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr);
+  }
+
+  .spot-library-panel {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
   }
 }
 
