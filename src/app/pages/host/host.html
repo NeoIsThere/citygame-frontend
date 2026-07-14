@@ -48,6 +48,14 @@
           <span>Spot library</span>
           <small>Manage reusable spots.</small>
         </button>
+
+        <button class="menu-card booking-menu-card" type="button" (click)="openBookings()">
+          <span>Booking requests</span>
+          <small>
+            {{ bookings.pendingApplications.length }} pending,
+            {{ bookings.confirmedApplications.length }} confirmed.
+          </small>
+        </button>
       </section>
 
       <section class="tool-panel session-overview">
@@ -137,6 +145,210 @@
             }
           </div>
         }
+      </section>
+    } @else if (activeView === 'bookings') {
+      <section class="view-page booking-admin-page">
+        <div class="view-heading split-heading">
+          <div class="view-title">
+            <button class="back-button" type="button" (click)="backToMenu()" title="Back">&larr;</button>
+            <div>
+              <p class="eyebrow">Europe/Paris</p>
+              <h2>Booking requests</h2>
+            </div>
+          </div>
+          <button class="plain-button" type="button" (click)="openBookings()" [disabled]="bookingSaving">
+            Refresh
+          </button>
+        </div>
+
+        <section class="tool-panel availability-editor">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Open dates</p>
+              <h3>New availability group</h3>
+            </div>
+            <small>
+              {{ bookings.slotIntervalMinutes }}-minute departures &middot;
+              {{ bookings.bookingDurationMinutes / 60 }}-hour bookings
+            </small>
+          </div>
+
+          <form class="availability-form" (ngSubmit)="createAvailability()">
+            <label>
+              From date
+              <input
+                name="availabilityStartDate"
+                type="date"
+                [min]="bookings.today"
+                [(ngModel)]="availabilityStartDate"
+                required
+              />
+            </label>
+            <label>
+              To date
+              <input
+                name="availabilityEndDate"
+                type="date"
+                [min]="availabilityStartDate || bookings.today"
+                [(ngModel)]="availabilityEndDate"
+                required
+              />
+            </label>
+            <label>
+              Daily start
+              <input
+                name="availabilityStartTime"
+                type="time"
+                [step]="bookings.slotIntervalMinutes * 60"
+                [(ngModel)]="availabilityStartTime"
+                required
+              />
+            </label>
+            <label>
+              Daily end
+              <input
+                name="availabilityEndTime"
+                type="time"
+                [step]="bookings.slotIntervalMinutes * 60"
+                [(ngModel)]="availabilityEndTime"
+                required
+              />
+            </label>
+            <button type="submit" [disabled]="bookingSaving">Add availability</button>
+          </form>
+
+          @if (bookings.availabilityGroups.length === 0) {
+            <p class="muted">No availability groups yet.</p>
+          } @else {
+            <div class="availability-list">
+              @for (group of bookings.availabilityGroups; track group.id) {
+                <article>
+                  <div>
+                    <strong>
+                      {{ formatBookingDate(group.startDate) }}
+                      @if (group.endDate !== group.startDate) {
+                        &ndash; {{ formatBookingDate(group.endDate) }}
+                      }
+                    </strong>
+                    <span>{{ group.startTime }}&ndash;{{ group.endTime }} daily</span>
+                  </div>
+                  <button
+                    class="danger-button"
+                    type="button"
+                    (click)="deleteAvailability(group)"
+                    [disabled]="bookingSaving"
+                  >
+                    Delete
+                  </button>
+                </article>
+              }
+            </div>
+          }
+        </section>
+
+        <div class="booking-application-columns">
+          <section class="tool-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">{{ bookings.pendingApplications.length }} waiting</p>
+                <h3>Pending applications</h3>
+              </div>
+            </div>
+
+            @if (bookings.pendingApplications.length === 0) {
+              <p class="muted">No pending applications.</p>
+            } @else {
+              <div class="booking-application-list">
+                @for (application of bookings.pendingApplications; track application.id) {
+                  <article class="booking-application-card pending">
+                    <div class="booking-application-heading">
+                      <div>
+                        <strong>{{ application.firstName }} {{ application.lastName }}</strong>
+                        <span>{{ bookingWindowLabel(application) }}</span>
+                      </div>
+                      <span class="status-pill">Pending</span>
+                    </div>
+
+                    <dl>
+                      <div><dt>Group</dt><dd>{{ application.participantCount }} people</dd></div>
+                      <div><dt>Nationality</dt><dd>{{ nationalityName(application.nationality) }}</dd></div>
+                      <div><dt>Language</dt><dd>{{ languageLabel(application.language) }}</dd></div>
+                      <div><dt>Email</dt><dd><a [href]="'mailto:' + application.email">{{ application.email }}</a></dd></div>
+                      <div><dt>Phone</dt><dd><a [href]="'tel:' + application.phone">{{ application.phone }}</a></dd></div>
+                    </dl>
+
+                    @if (isSlotConfirmed(application)) {
+                      <p class="slot-taken-note">This departure falls inside another confirmed three-hour booking.</p>
+                    }
+
+                    <div class="action-row">
+                      <button
+                        class="success-button"
+                        type="button"
+                        (click)="confirmBooking(application)"
+                        [disabled]="bookingSaving || isSlotConfirmed(application)"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        class="danger-button"
+                        type="button"
+                        (click)="cancelBooking(application)"
+                        [disabled]="bookingSaving"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </article>
+                }
+              </div>
+            }
+          </section>
+
+          <section class="tool-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">{{ bookings.confirmedApplications.length }} booked</p>
+                <h3>Confirmed applications</h3>
+              </div>
+            </div>
+
+            @if (bookings.confirmedApplications.length === 0) {
+              <p class="muted">No confirmed applications.</p>
+            } @else {
+              <div class="booking-application-list">
+                @for (application of bookings.confirmedApplications; track application.id) {
+                  <article class="booking-application-card confirmed">
+                    <div class="booking-application-heading">
+                      <div>
+                        <strong>{{ application.firstName }} {{ application.lastName }}</strong>
+                        <span>{{ bookingWindowLabel(application) }}</span>
+                      </div>
+                      <span class="status-pill">Confirmed</span>
+                    </div>
+
+                    <dl>
+                      <div><dt>Group</dt><dd>{{ application.participantCount }} people</dd></div>
+                      <div><dt>Nationality</dt><dd>{{ nationalityName(application.nationality) }}</dd></div>
+                      <div><dt>Language</dt><dd>{{ languageLabel(application.language) }}</dd></div>
+                      <div><dt>Email</dt><dd><a [href]="'mailto:' + application.email">{{ application.email }}</a></dd></div>
+                      <div><dt>Phone</dt><dd><a [href]="'tel:' + application.phone">{{ application.phone }}</a></dd></div>
+                    </dl>
+
+                    <button
+                      class="danger-button"
+                      type="button"
+                      (click)="cancelBooking(application)"
+                      [disabled]="bookingSaving"
+                    >
+                      Cancel and reopen slot
+                    </button>
+                  </article>
+                }
+              </div>
+            }
+          </section>
+        </div>
       </section>
     } @else if (activeView === 'sessionDetail' && selected) {
       <section class="view-page session-page">

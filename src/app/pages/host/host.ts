@@ -3,6 +3,8 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import {
+  BookingApplication,
+  BookingAvailabilityGroup,
   CitygameApi,
   HostGameDetail,
   GameSummary,
@@ -11,8 +13,10 @@ import {
   HostSessionSummary,
   SpotSummary,
   SpotForm,
-  Team
+  Team,
+  HostBookingState
 } from '../../core/citygame-api';
+import { COUNTRY_OPTIONS } from '../../core/countries';
 
 interface ObjectiveForm {
   title: string;
@@ -29,7 +33,14 @@ interface GameForm {
   objectives: ObjectiveForm[];
 }
 
-type HostView = 'menu' | 'gameEditor' | 'sessionStarter' | 'sessionDetail' | 'gameDetail' | 'spotLibrary';
+type HostView =
+  | 'menu'
+  | 'bookings'
+  | 'gameEditor'
+  | 'sessionStarter'
+  | 'sessionDetail'
+  | 'gameDetail'
+  | 'spotLibrary';
 
 @Component({
   selector: 'app-host',
@@ -55,6 +66,13 @@ export class HostComponent implements OnInit, OnDestroy {
   showSessionQrCodes = false;
   activeView: HostView = 'menu';
 
+  bookings: HostBookingState = this.emptyBookingState();
+  availabilityStartDate = '';
+  availabilityEndDate = '';
+  availabilityStartTime = '17:00';
+  availabilityEndTime = '21:00';
+  bookingSaving = false;
+
   spots: SpotSummary[] = [];
   spotPickerIndex: number | null = null;
   editingSpot: SpotSummary | null = null;
@@ -63,6 +81,10 @@ export class HostComponent implements OnInit, OnDestroy {
   selectedCity = '';
 
   readonly maxObjectiveImages = 3;
+
+  private readonly countryNames = new Map<string, string>(
+    COUNTRY_OPTIONS.map((country) => [country.code, country.name])
+  );
 
   private readonly passwordKey = 'citygame-host-password';
   private readonly pollMs = 5000;
@@ -106,6 +128,7 @@ export class HostComponent implements OnInit, OnDestroy {
     this.sessions = [];
     this.selected = null;
     this.selectedGame = null;
+    this.bookings = this.emptyBookingState();
     this.activeView = 'menu';
   }
 
@@ -116,12 +139,14 @@ export class HostComponent implements OnInit, OnDestroy {
     forkJoin({
       games: this.api.hostGames(this.password),
       sessions: this.api.hostSessions(this.password),
-      spots: this.api.hostSpots(this.password)
+      spots: this.api.hostSpots(this.password),
+      bookings: this.api.hostBookings(this.password)
     }).subscribe({
-      next: ({ games, sessions, spots }) => {
+      next: ({ games, sessions, spots, bookings }) => {
         this.games = games;
         this.sessions = sessions;
         this.spots = spots;
+        this.setBookingState(bookings);
         this.loading = false;
       },
       error: (error) => this.handleError(error, 'Could not load host dashboard.')
@@ -135,15 +160,17 @@ export class HostComponent implements OnInit, OnDestroy {
     forkJoin({
       games: this.api.hostGames(password),
       sessions: this.api.hostSessions(password),
-      spots: this.api.hostSpots(password)
+      spots: this.api.hostSpots(password),
+      bookings: this.api.hostBookings(password)
     }).subscribe({
-      next: ({ games, sessions, spots }) => {
+      next: ({ games, sessions, spots, bookings }) => {
         this.password = password;
         this.isAuthenticated = true;
         localStorage.setItem(this.passwordKey, password);
         this.games = games;
         this.sessions = sessions;
         this.spots = spots;
+        this.setBookingState(bookings);
         this.loading = false;
         this.activeView = 'menu';
         this.startSummaryPolling();
@@ -363,10 +390,151 @@ export class HostComponent implements OnInit, OnDestroy {
     this.notice = '';
   }
 
+  openBookings(): void {
+    this.stopSessionPolling();
+    this.activeView = 'bookings';
+    this.error = '';
+    this.notice = '';
+    this.loadBookings();
+  }
+
   backToMenu(): void {
     this.stopSessionPolling();
     this.activeView = 'menu';
     this.error = '';
+  }
+
+  createAvailability(): void {
+    if (
+      !this.availabilityStartDate ||
+      !this.availabilityEndDate ||
+      !this.availabilityStartTime ||
+      !this.availabilityEndTime
+    ) {
+      this.error = 'Choose the date range and daily time window.';
+      return;
+    }
+
+    this.bookingSaving = true;
+    this.error = '';
+
+    this.api
+      .createBookingAvailability(this.password, {
+        startDate: this.availabilityStartDate,
+        endDate: this.availabilityEndDate,
+        startTime: this.availabilityStartTime,
+        endTime: this.availabilityEndTime
+      })
+      .subscribe({
+        next: () => {
+          this.notice = 'Availability group created.';
+          this.bookingSaving = false;
+          this.loadBookings();
+        },
+        error: (error) => this.handleBookingError(error, 'Could not create availability.')
+      });
+  }
+
+  deleteAvailability(group: BookingAvailabilityGroup): void {
+    if (!confirm(`Delete availability from ${group.startDate} to ${group.endDate}?`)) {
+      return;
+    }
+
+    this.bookingSaving = true;
+    this.error = '';
+    this.api.deleteBookingAvailability(this.password, group.id).subscribe({
+      next: () => {
+        this.notice = 'Availability group deleted.';
+        this.bookingSaving = false;
+        this.loadBookings();
+      },
+      error: (error) => this.handleBookingError(error, 'Could not delete availability.')
+    });
+  }
+
+  confirmBooking(application: BookingApplication): void {
+    if (!confirm(`Confirm ${application.firstName} ${application.lastName} for ${application.slotDate} at ${application.slotTime}?`)) {
+      return;
+    }
+
+    this.bookingSaving = true;
+    this.error = '';
+    this.api.confirmBookingApplication(this.password, application.id).subscribe({
+      next: (bookings) => {
+        this.setBookingState(bookings);
+        this.notice = 'Application confirmed. This date and time are now unavailable.';
+        this.bookingSaving = false;
+      },
+      error: (error) => this.handleBookingError(error, 'Could not confirm this application.')
+    });
+  }
+
+  cancelBooking(application: BookingApplication): void {
+    const description =
+      application.status === 'confirmed'
+        ? 'This permanently deletes the booking and reopens its date and time.'
+        : 'This permanently deletes the application.';
+
+    if (!confirm(`Cancel ${application.firstName} ${application.lastName}? ${description}`)) {
+      return;
+    }
+
+    this.bookingSaving = true;
+    this.error = '';
+    this.api
+      .cancelBookingApplication(this.password, application.status, application.id)
+      .subscribe({
+        next: (bookings) => {
+          this.setBookingState(bookings);
+          this.notice =
+            application.status === 'confirmed'
+              ? 'Booking cancelled. The date and time are open again.'
+              : 'Application cancelled.';
+          this.bookingSaving = false;
+        },
+        error: (error) => this.handleBookingError(error, 'Could not cancel this application.')
+      });
+  }
+
+  formatBookingDate(date: string): string {
+    return new Intl.DateTimeFormat('en', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }).format(new Date(`${date}T12:00:00`));
+  }
+
+  nationalityName(code: string): string {
+    return this.countryNames.get(code) || code;
+  }
+
+  languageLabel(language: string): string {
+    return language === 'french' ? '🇫🇷 French' : '🇬🇧 English';
+  }
+
+  isSlotConfirmed(application: BookingApplication): boolean {
+    const candidateStamp = this.bookingStamp(application.slotDate, application.slotTime);
+
+    return this.bookings.confirmedApplications.some(
+      (confirmed) => {
+        const confirmedStamp = this.bookingStamp(confirmed.slotDate, confirmed.slotTime);
+        return (
+          candidateStamp >= confirmedStamp &&
+          candidateStamp < confirmedStamp + this.bookings.bookingDurationMinutes
+        );
+      }
+    );
+  }
+
+  bookingWindowLabel(application: BookingApplication): string {
+    const start = `${this.formatBookingDate(application.slotDate)} at ${application.slotTime}`;
+
+    if (application.slotEndDate === application.slotDate) {
+      return `${start}–${application.slotEndTime}`;
+    }
+
+    return `${start}–${this.formatBookingDate(application.slotEndDate)} at ${application.slotEndTime}`;
   }
 
   removeObjective(index: number): void {
@@ -688,7 +856,7 @@ export class HostComponent implements OnInit, OnDestroy {
   }
 
   private refreshSessionSummaries(): void {
-    if (!this.isAuthenticated || this.saving) {
+    if (!this.isAuthenticated || this.saving || this.bookingSaving) {
       return;
     }
 
@@ -702,6 +870,17 @@ export class HostComponent implements OnInit, OnDestroy {
         }
       }
     });
+
+    if (this.activeView === 'bookings') {
+      this.api.hostBookings(this.password).subscribe({
+        next: (bookings) => this.setBookingState(bookings),
+        error: (error) => {
+          if (error.status === 401) {
+            this.handleError(error, 'Could not refresh booking applications.');
+          }
+        }
+      });
+    }
   }
 
   private startSessionPolling(): void {
@@ -746,6 +925,44 @@ export class HostComponent implements OnInit, OnDestroy {
     });
   }
 
+  private loadBookings(): void {
+    this.api.hostBookings(this.password).subscribe({
+      next: (bookings) => this.setBookingState(bookings),
+      error: (error) => this.handleBookingError(error, 'Could not load booking applications.')
+    });
+  }
+
+  private setBookingState(bookings: HostBookingState): void {
+    this.bookings = bookings;
+
+    if (!this.availabilityStartDate || this.availabilityStartDate < bookings.today) {
+      this.availabilityStartDate = bookings.today;
+    }
+    if (!this.availabilityEndDate || this.availabilityEndDate < this.availabilityStartDate) {
+      this.availabilityEndDate = this.availabilityStartDate;
+    }
+  }
+
+  private emptyBookingState(): HostBookingState {
+    return {
+      timezone: 'Europe/Paris',
+      minParticipants: 1,
+      bookingDurationMinutes: 180,
+      slotIntervalMinutes: 30,
+      today: '',
+      maxBookingDate: '',
+      availabilityGroups: [],
+      pendingApplications: [],
+      confirmedApplications: []
+    };
+  }
+
+  private bookingStamp(date: string, time: string): number {
+    const [year, month, day] = date.split('-').map(Number);
+    const [hours, minutes] = time.split(':').map(Number);
+    return Date.UTC(year, month - 1, day, hours, minutes) / 60000;
+  }
+
   private emptyGame(): GameForm {
     return {
       name: '',
@@ -775,6 +992,15 @@ export class HostComponent implements OnInit, OnDestroy {
       imageFiles: [],
       keepImageUrls: []
     };
+  }
+
+  private handleBookingError(error: any, fallback: string): void {
+    this.error = error.error?.message || fallback;
+    this.bookingSaving = false;
+
+    if (error.status === 401) {
+      this.handleError(error, fallback);
+    }
   }
 
   private handleError(error: any, fallback: string): void {
