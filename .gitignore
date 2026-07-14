@@ -26,8 +26,6 @@ yarn-error.log
 # Visual Studio Code
 .vscode/*
 !.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/mcp.json
 .history/*
@@ -38,6 +36,8 @@ yarn-error.log
 /connect.lock
 /coverage
 /libpeerconnection.log
+.frontend-dev.log
+.frontend-dev.pid
 testem.log
 /typings
 __screenshots__/
