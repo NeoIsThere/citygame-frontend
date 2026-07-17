@@ -174,12 +174,91 @@ export interface CreateGamePayload {
   }>;
 }
 
+export type BookingLanguage = 'french' | 'english';
+export type BookingApplicationStatus = 'pending' | 'confirmed';
+
+export interface BookingSlot {
+  availabilityGroupId: number;
+  time: string;
+}
+
+export interface BookingDateOption {
+  date: string;
+  slots: BookingSlot[];
+}
+
+export interface PublicBookingOptions {
+  timezone: string;
+  minParticipants: number;
+  bookingDurationMinutes: number;
+  slotIntervalMinutes: number;
+  minDate: string;
+  maxDate: string;
+  dates: BookingDateOption[];
+}
+
+export interface BookingApplicationPayload {
+  availabilityGroupId: number;
+  slotDate: string;
+  slotTime: string;
+  participantCount: number;
+  phone: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  nationality: string;
+  language: BookingLanguage;
+}
+
+export interface BookingAvailabilityGroup {
+  id: number;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+}
+
+export interface BookingApplication extends BookingApplicationPayload {
+  id: number;
+  status: BookingApplicationStatus;
+  slotEndDate: string;
+  slotEndTime: string;
+  submittedAt: string;
+  confirmedAt: string | null;
+}
+
+export interface HostBookingState {
+  timezone: string;
+  minParticipants: number;
+  bookingDurationMinutes: number;
+  slotIntervalMinutes: number;
+  today: string;
+  maxBookingDate: string;
+  availabilityGroups: BookingAvailabilityGroup[];
+  pendingApplications: BookingApplication[];
+  confirmedApplications: BookingApplication[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class CitygameApi {
   private readonly apiOrigin = (window.RACE_THE_CITY_API_URL || '').replace(/\/$/, '');
   private readonly baseUrl = `${this.apiOrigin}/api`;
 
   constructor(private readonly http: HttpClient) {}
+
+  bookingOptions(): Observable<PublicBookingOptions> {
+    return this.http.get<PublicBookingOptions>(`${this.baseUrl}/bookings/options`);
+  }
+
+  requestBooking(
+    payload: BookingApplicationPayload
+  ): Observable<{ id: number; status: 'pending'; submittedAt: string }> {
+    return this.http.post<{ id: number; status: 'pending'; submittedAt: string }>(
+      `${this.baseUrl}/bookings/applications`,
+      payload
+    );
+  }
 
   getSession(sessionId: string, teamId?: number | null): Observable<PublicSessionState> {
     const query = teamId ? `?teamId=${teamId}` : '';
@@ -258,6 +337,49 @@ export class CitygameApi {
     return this.http.get<HostSessionSummary[]>(`${this.baseUrl}/host/sessions`, {
       headers: this.hostHeaders(password)
     });
+  }
+
+  hostBookings(password: string): Observable<HostBookingState> {
+    return this.http.get<HostBookingState>(`${this.baseUrl}/host/bookings`, {
+      headers: this.hostHeaders(password)
+    });
+  }
+
+  createBookingAvailability(
+    password: string,
+    payload: { startDate: string; endDate: string; startTime: string; endTime: string }
+  ): Observable<BookingAvailabilityGroup> {
+    return this.http.post<BookingAvailabilityGroup>(
+      `${this.baseUrl}/host/booking-availabilities`,
+      payload,
+      { headers: this.hostHeaders(password) }
+    );
+  }
+
+  deleteBookingAvailability(password: string, groupId: number): Observable<{ ok: true }> {
+    return this.http.delete<{ ok: true }>(
+      `${this.baseUrl}/host/booking-availabilities/${groupId}`,
+      { headers: this.hostHeaders(password) }
+    );
+  }
+
+  confirmBookingApplication(password: string, applicationId: number): Observable<HostBookingState> {
+    return this.http.post<HostBookingState>(
+      `${this.baseUrl}/host/booking-applications/pending/${applicationId}/confirm`,
+      {},
+      { headers: this.hostHeaders(password) }
+    );
+  }
+
+  cancelBookingApplication(
+    password: string,
+    status: BookingApplicationStatus,
+    applicationId: number
+  ): Observable<HostBookingState> {
+    return this.http.delete<HostBookingState>(
+      `${this.baseUrl}/host/booking-applications/${status}/${applicationId}`,
+      { headers: this.hostHeaders(password) }
+    );
   }
 
   createSession(

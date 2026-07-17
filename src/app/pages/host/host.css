@@ -102,6 +102,10 @@ h4 {
   background: #8ce99a;
 }
 
+.menu-card.booking-menu-card {
+  background: #d9c7ff;
+}
+
 .menu-card span {
   font-size: 1.25rem;
 }
@@ -685,6 +689,143 @@ small {
   padding: 0.6rem 0.75rem;
 }
 
+.booking-admin-page {
+  align-content: start;
+}
+
+.availability-editor {
+  display: grid;
+  gap: 1rem;
+}
+
+.availability-form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.availability-list,
+.booking-application-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.availability-list article {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  border: 2px solid #17213f;
+  border-radius: 8px;
+  padding: 0.8rem;
+  background: #f8fbff;
+}
+
+.availability-list article div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.availability-list article span {
+  color: #52607f;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.booking-application-columns {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+.booking-application-card {
+  display: grid;
+  gap: 0.8rem;
+  border: 2px solid #17213f;
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.booking-application-card.pending {
+  background: #fff8e8;
+}
+
+.booking-application-card.confirmed {
+  background: #ecfff1;
+}
+
+.booking-application-heading {
+  display: flex;
+  gap: 0.75rem;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.booking-application-heading > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.booking-application-heading span:not(.status-pill) {
+  color: #52607f;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.status-pill {
+  flex: 0 0 auto;
+  border: 2px solid #17213f;
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.booking-application-card dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.booking-application-card dl div {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.booking-application-card dt {
+  color: #52607f;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.booking-application-card dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.booking-application-card a {
+  color: #0f6770;
+}
+
+.booking-application-card .action-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.slot-taken-note {
+  margin: 0;
+  border-radius: 6px;
+  padding: 0.6rem;
+  background: #ffe1e1;
+  color: #8b1e2d;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
 @media (min-width: 760px) {
   .host-shell {
     padding: 2rem;
@@ -710,6 +851,15 @@ small {
   .team-toggle-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .availability-form {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .availability-form button {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (min-width: 900px) {
@@ -722,6 +872,10 @@ small {
     top: 1rem;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
+  }
+
+  .booking-application-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

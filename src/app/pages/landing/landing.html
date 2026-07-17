@@ -17,6 +17,7 @@
       <p class="intro">Visit differently: race through the city and compete against your friends</p>
       <div class="hero-actions">
         <a class="primary-action" href="#concept">How does it work</a>
+        <a class="secondary-action" href="#book">Book a session</a>
       </div>
     </div>
   </section>
@@ -52,6 +53,218 @@
     </div>
   </section>
 
+  <section id="book" class="booking-band">
+    <div class="section-inner booking-layout">
+      <div class="booking-intro">
+        <p class="eyebrow">Plan your race</p>
+        <h2>Book a private session.</h2>
+      </div>
+
+      <div class="booking-card">
+        @if (bookingLoading) {
+          <p class="booking-state">Loading open dates...</p>
+        } @else if (!bookingOptions || bookingOptions.dates.length === 0) {
+          @if (bookingError) {
+            <p class="booking-error">{{ bookingError }}</p>
+          } @else {
+            <p class="booking-state">There are no open dates right now. Please check back soon.</p>
+          }
+        } @else {
+          <div class="calendar" aria-label="Open booking dates">
+            <div class="calendar-heading">
+              <button
+                type="button"
+                class="calendar-arrow"
+                (click)="moveCalendar(-1)"
+                [disabled]="!canShowPreviousMonth"
+                aria-label="Previous month"
+              >
+                &larr;
+              </button>
+              <strong>{{ calendarTitle }}</strong>
+              <button
+                type="button"
+                class="calendar-arrow"
+                (click)="moveCalendar(1)"
+                [disabled]="!canShowNextMonth"
+                aria-label="Next month"
+              >
+                &rarr;
+              </button>
+            </div>
+
+            <div class="calendar-grid calendar-weekdays" aria-hidden="true">
+              @for (weekday of weekdays; track weekday) {
+                <span>{{ weekday }}</span>
+              }
+            </div>
+
+            <div class="calendar-grid">
+              @for (cell of calendarCells; track $index) {
+                @if (cell.date) {
+                  <button
+                    type="button"
+                    class="calendar-day"
+                    [class.open]="cell.enabled"
+                    [class.selected]="selectedDate === cell.date"
+                    [disabled]="!cell.enabled"
+                    (click)="selectDate(cell.date, cell.enabled)"
+                    [attr.aria-label]="cell.enabled ? 'Choose ' + formatSelectedDate(cell.date) : null"
+                  >
+                    {{ cell.day }}
+                  </button>
+                } @else {
+                  <span class="calendar-day empty"></span>
+                }
+              }
+            </div>
+          </div>
+
+          @if (selectedDate) {
+            <div class="slot-picker">
+              <p>
+                <strong>{{ formatSelectedDate(selectedDate) }}</strong>
+                <span>Choose a departure time. Your booking lasts 3 hours.</span>
+              </p>
+              <div class="slot-grid">
+                @for (slot of selectedDateSlots; track slot.time) {
+                  <button
+                    type="button"
+                    [class.selected]="selectedSlot?.time === slot.time"
+                    (click)="selectSlot(slot)"
+                  >
+                    {{ slot.time }}
+                  </button>
+                }
+              </div>
+            </div>
+          }
+
+          <form #bookingFormElement="ngForm" class="booking-form" (ngSubmit)="submitBooking()">
+            <div class="booking-field-grid">
+              <label>
+                First name
+                <input
+                  name="bookingFirstName"
+                  type="text"
+                  maxlength="100"
+                  autocomplete="given-name"
+                  [(ngModel)]="bookingForm.firstName"
+                  required
+                />
+              </label>
+
+              <label>
+                Last name
+                <input
+                  name="bookingLastName"
+                  type="text"
+                  maxlength="100"
+                  autocomplete="family-name"
+                  [(ngModel)]="bookingForm.lastName"
+                  required
+                />
+              </label>
+
+              <label>
+                Email address
+                <input
+                  name="bookingEmail"
+                  type="email"
+                  maxlength="254"
+                  autocomplete="email"
+                  [(ngModel)]="bookingForm.email"
+                  required
+                />
+              </label>
+
+              <label>
+                Phone number
+                <input
+                  name="bookingPhone"
+                  type="tel"
+                  maxlength="32"
+                  autocomplete="tel"
+                  placeholder="+33612345678"
+                  pattern="\+[1-9][0-9]{7,14}"
+                  [(ngModel)]="bookingForm.phone"
+                  required
+                />
+                <small>Include the international country code.</small>
+              </label>
+
+              <label>
+                Number of participants
+                <input
+                  name="bookingParticipants"
+                  type="number"
+                  [min]="bookingOptions.minParticipants"
+                  max="1000"
+                  [(ngModel)]="bookingForm.participantCount"
+                  required
+                />
+              </label>
+
+              <label>
+                Nationality
+                <select
+                  name="bookingNationality"
+                  autocomplete="country"
+                  [(ngModel)]="bookingForm.nationality"
+                  required
+                >
+                  <option value="">Select a country</option>
+                  @for (country of countries; track country.code) {
+                    <option [value]="country.code">{{ country.name }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+
+            <fieldset class="language-field">
+              <legend>Language spoken</legend>
+              <label [class.selected]="bookingForm.language === 'french'">
+                <input
+                  name="bookingLanguage"
+                  type="radio"
+                  value="french"
+                  [(ngModel)]="bookingForm.language"
+                />
+                <span class="language-flag" aria-hidden="true">&#x1F1EB;&#x1F1F7;</span>
+                <span class="language-name">French</span>
+              </label>
+              <label [class.selected]="bookingForm.language === 'english'">
+                <input
+                  name="bookingLanguage"
+                  type="radio"
+                  value="english"
+                  [(ngModel)]="bookingForm.language"
+                />
+                <span class="language-flag" aria-hidden="true">&#x1F1EC;&#x1F1E7;</span>
+                <span class="language-name">English</span>
+              </label>
+            </fieldset>
+
+            @if (bookingError) {
+              <p class="booking-error">{{ bookingError }}</p>
+            }
+            @if (bookingNotice) {
+              <p class="booking-notice">{{ bookingNotice }}</p>
+            }
+
+            <button
+              class="booking-submit"
+              type="submit"
+              [disabled]="bookingSaving || bookingFormElement.invalid || !selectedDate || !selectedSlot"
+            >
+              {{ bookingSaving ? 'Sending...' : 'Request this session' }}
+            </button>
+          </form>
+        }
+      </div>
+    </div>
+  </section>
+
   <footer class="site-footer">
     <div class="footer-inner">
       <div>
@@ -66,7 +279,7 @@
 
       <details>
         <summary>Privacy</summary>
-        <p>The app uses team names, scores, session progress, and submitted proof photos to run game sessions.</p>
+        <p>The app uses booking contact details, team names, scores, session progress, and submitted proof photos to run requested game sessions.</p>
       </details>
     </div>
   </footer>
